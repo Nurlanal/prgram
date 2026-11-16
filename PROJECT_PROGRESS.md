@@ -6,9 +6,9 @@
 
 | # | Mərhələ | Status |
 |---|---|---|
-| 1 | Layihənin təməli | ✅ Tamamlandı (istifadəçi təsdiqi gözlənilir) |
-| 2 | Backend və məlumat bazası (Supabase) | ⏳ Növbəti |
-| 3 | Qeydiyyat və giriş | — |
+| 1 | Layihənin təməli | ✅ Tamamlandı, təsdiqləndi |
+| 2 | Backend və məlumat bazası (Supabase) | ✅ Kod tamamlandı — canlı Supabase bağlantısı açarlar gələndə yoxlanacaq |
+| 3 | Qeydiyyat və giriş | ⏳ Növbəti |
 | 4 | Müştəri ana səhifəsi | — |
 | 5 | Məhsul və kateqoriyalar | — |
 | 6 | Səbət | — |
@@ -22,7 +22,7 @@
 | 14 | Təhlükəsizlik və tam test | — |
 | 15 | APK build (imzalı release) | — |
 
-**Cari mərhələ:** 1 tamamlandı → Mərhələ 2 istifadəçi təsdiqindən sonra başlayacaq.
+**Cari mərhələ:** 2 tamamlandı (istifadəçi təsdiqi + Supabase açarları gözlənilir) → Mərhələ 3.
 
 ## Mərhələ 1 — nə edildi
 
@@ -35,6 +35,15 @@
 - Release: R8 minify + resource shrink; backup söndürülüb (sessiya tokenləri köçürülməsin).
 - Debug-only "rol interfeyslərinə baxış" düymələri (release-də yoxdur).
 
+## Mərhələ 2 — nə edildi
+
+- `supabase/migrations/` — 6 migration: enum-lar, 26 cədvəl (tələb olunan 22 + `product_costs`, `favorites`, `order_status_history`, `device_tokens`), funksiyalar/trigger-lər, RLS + açıq hüquqlar, Storage (3 bucket) + Realtime, seed (12 kateqoriya, parametrlər).
+- Server qaydaları: qeydiyyatda rol həmişə `customer` (metadata-dakı rol nəzərə alınmır); `bootstrap_first_admin()` yalnız SQL Editor-dan; sonuncu admin silinə bilməz; deaktiv admin dərhal girişini itirir; işçiyə çevrilən hesabın müştəri datası silinir.
+- Bütövlük: stok ≥ 0, bonus ≥ 0, sifariş məbləği formulu, idempotency açarı, eyni sifarişə bonus bir dəfə, "paid" yalnız təsdiqlə, unikal sifariş nömrəsi `MK-YYMMDD-NNNNNN`, Luhn-lu 16 rəqəmli bonus kartı + təsadüfi QR token, audit log.
+- Android: supabase-kt 3.2.6 (Auth, Postgrest, Storage, Realtime) + Ktor OkHttp; açarlar `local.properties`/env → BuildConfig; `service_role` açarı daxil edilərsə build dayanır.
+- `StoreSettingsRepository`: `app_settings` oxunur və Realtime ilə izlənir → brend rəngi/market adı tətbiqdə canlı dəyişir. Debug panelində server statusu.
+- `docs/BACKEND_SETUP.md`, `supabase/schema_full.sql`, `docs/test-reports/stage2-database.md`.
+
 ## Yaradılmış əsas fayllar
 
 - `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties`, `gradle/libs.versions.toml`, `gradlew`
@@ -44,6 +53,13 @@
 - `app/src/test/**` (Money, UserRole, StartDestination, RootViewModel, Robolectric UI testləri)
 - `README.md`, `docs/ARCHITECTURE.md`, `docs/screenshots/*`
 
+## Test nəticələri (Mərhələ 2)
+
+- Verilənlər bazası: 94/94 yoxlama (`supabase/tests/run_local_tests.sh`, PostgreSQL 16 + Supabase shim).
+- Android: 26/26 test (yeni: BackendConfig, DTO kontrakt testləri real DB sətirləri ilə, MockEngine üzərindən real supabase-kt sorğuları, RootViewModel Realtime/status).
+- debug + release build, lint 0 xəta. Gizli açar qoruyucusu yoxlanıldı (service_role açarı ilə build dayanır).
+- **Yoxlanılmayıb:** real Supabase layihəsinə canlı qoşulma (açarlar hələ verilməyib); release APK-nın cihazda işləməsi.
+
 ## Test nəticələri (Mərhələ 1)
 
 - 15/15 test keçdi (9 unit + 6 Robolectric UI: tətbiqin açılması, giriş, müştəri menyusu, admin, kuryer, qaranlıq rejim).
@@ -52,7 +68,10 @@
 
 ## Backend vəziyyəti
 
-- Hələ qoşulmayıb. Mərhələ 2-də Supabase layihəsi tələb olunur.
+- Sxem, RLS, Storage, Realtime kodu hazırdır və lokal PostgreSQL-də test olunub.
+- Real Supabase layihəsi hələ yoxdur → istifadəçi `docs/BACKEND_SETUP.md` üzrə yaradıb URL + anon key verməlidir.
+- Klient yazma yolu olmayan cədvəllər (orders, bonus, rollar, stok sayı) üçün server funksiyaları sonrakı mərhələlərdə: rol/kuryer (3, 10), sifariş+stok (7), bonus (11), stok idarəsi (9).
+- Qeyd: supabase-kt sessiyanı standart SharedPreferences-də saxlayır; Mərhələ 3-də şifrələnmiş saxlama ilə əvəz olunacaq.
 
 ## Açıq qalan məsələlər / istifadəçidən lazım olanlar
 
@@ -65,4 +84,5 @@
 
 ## Növbəti iş
 
-Mərhələ 2 — Supabase bağlantısı, SQL migration-lar (22 cədvəl), RLS, Storage, Realtime.
+1. İstifadəçi Supabase URL + anon key verəndə: migration-ları tətbiq etmək, canlı bağlantı testi.
+2. Mərhələ 3 — Qeydiyyat və giriş (telefon + şifrə, SMS təsdiqi, admin email girişi, kuryer hesabı, şifrə bərpası).

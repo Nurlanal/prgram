@@ -10,6 +10,7 @@ import androidx.navigation.compose.rememberNavController
 import az.market.app.BuildConfig
 import az.market.app.core.model.SessionState
 import az.market.app.core.model.UserRole
+import az.market.app.data.store.BackendStatus
 import az.market.app.feature.admin.AdminShell
 import az.market.app.feature.auth.LoginPlaceholderScreen
 import az.market.app.feature.auth.WelcomeScreen
@@ -21,7 +22,11 @@ import az.market.app.feature.customer.CustomerShell
  * (signed out ↔ signed in as role X), so the back stack of one role can never leak into another.
  */
 @Composable
-fun MarketNavHost(session: SessionState) {
+fun MarketNavHost(
+    session: SessionState,
+    backendStatus: BackendStatus,
+    onRetryBackend: () -> Unit,
+) {
     val sessionKey = when (session) {
         is SessionState.SignedIn -> "${session.userId}:${session.role}"
         else -> "signed_out"
@@ -40,6 +45,8 @@ fun MarketNavHost(session: SessionState) {
                     onSignIn = { navController.navigate(LoginRoute) },
                     onRegister = { navController.navigate(LoginRoute) },
                     showDevRolePreview = BuildConfig.DEBUG,
+                    backendStatus = backendStatus,
+                    onRetryBackend = onRetryBackend,
                     onDevPreviewRole = { role ->
                         navController.navigate(
                             when (role) {

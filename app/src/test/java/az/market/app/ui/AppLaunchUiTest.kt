@@ -40,6 +40,9 @@ class AppLaunchUiTest {
     @Test fun welcomeScreenOpens() {
         compose.onNodeWithText("Xoş gəlmisiniz!").assertExists()
         compose.onNodeWithText("Daxil ol").assertExists()
+        // This build has no SUPABASE_URL / SUPABASE_ANON_KEY, so the app must say so explicitly.
+        compose.onNodeWithTag("backend_status").performScrollTo()
+        compose.onNodeWithText("Server: konfiqurasiya edilməyib", substring = true).assertExists()
         snap("01_welcome")
     }
 

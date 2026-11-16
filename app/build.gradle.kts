@@ -1,3 +1,6 @@
+import java.util.Base64
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,6 +8,29 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+}
+
+// ---- Backend configuration (never committed: local.properties or CI environment variables) ----
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun backendValue(name: String): String =
+    (localProps.getProperty(name) ?: System.getenv(name) ?: "").trim()
+
+val supabaseUrl = backendValue("SUPABASE_URL")
+val supabaseAnonKey = backendValue("SUPABASE_ANON_KEY")
+
+// Hard stop: a secret / service_role key must never end up inside the APK.
+fun isSecretKey(key: String): Boolean {
+    if (key.startsWith("sb_secret_")) return true
+    val parts = key.split('.')
+    if (parts.size != 3) return false
+    val payload = runCatching { String(Base64.getUrlDecoder().decode(parts[1])) }.getOrDefault("")
+    return Regex("\"role\"\\s*:\\s*\"service_role\"").containsMatchIn(payload)
+}
+check(!isSecretKey(supabaseAnonKey)) {
+    "SUPABASE_ANON_KEY is a SECRET (service_role) key. Use the anon/publishable key — the secret key must stay on the server."
 }
 
 android {
@@ -21,6 +47,9 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
     }
 
     androidResources {
@@ -89,6 +118,13 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
+    implementation(platform(libs.supabase.bom))
+    implementation(libs.supabase.postgrest)
+    implementation(libs.supabase.auth)
+    implementation(libs.supabase.storage)
+    implementation(libs.supabase.realtime)
+    implementation(libs.ktor.client.okhttp)
+
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
 
@@ -97,6 +133,7 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.ktor.client.mock)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(platform(libs.androidx.compose.bom))

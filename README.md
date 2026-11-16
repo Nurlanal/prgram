@@ -20,6 +20,17 @@ Bir market, bir filial üçün tam mobil alış-veriş platforması. Bütün sis
 - Android Studio (Narwhal və ya daha yeni) və ya JDK 17+ (21 tövsiyə olunur)
 - Android SDK Platform 36, Build-Tools 36.0.0
 
+## Backend
+
+Supabase quraşdırılması, açarlar və ilk admin: **[docs/BACKEND_SETUP.md](docs/BACKEND_SETUP.md)**.
+
+`local.properties` (commit edilmir):
+```properties
+sdk.dir=/path/to/Android/sdk
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_ANON_KEY=<anon / publishable key>
+```
+
 ## Build
 
 ```bash
@@ -30,6 +41,7 @@ echo "sdk.dir=/path/to/Android/sdk" > local.properties
 ./gradlew assembleDebug       # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew assembleRelease     # R8 ilə kiçildilmiş release (imzalama Mərhələ 15-də)
 ./gradlew lintDebug
+supabase/tests/run_local_tests.sh   # verilənlər bazası testləri (PostgreSQL lazımdır)
 ```
 
 UI testləri ekran görüntülərini `app/build/screenshots/` qovluğuna yazır.
@@ -50,11 +62,19 @@ az.market.app
 │   ├── designsystem  # tema (açıq/qaranlıq, dəyişən brend rəngi), komponentlər
 │   ├── di            # Dispatcher modulları
 │   └── model         # UserRole, SessionState, ThemeMode
-├── data              # repository-lər (session; Mərhələ 2+ Supabase)
+├── data
+│   ├── remote        # Supabase klienti, BackendConfig, DTO-lar
+│   ├── store         # market parametrləri (+Realtime), backend status
+│   └── session       # sessiya (Mərhələ 3-də Supabase Auth)
 ├── navigation        # marşrutlar, rol əsaslı başlanğıc, root NavHost
 └── feature
     ├── auth          # xoş gəlmisiniz, giriş/qeydiyyat
     ├── customer      # 5 bölməli aşağı menyu
     ├── admin         # admin paneli
     └── courier       # kuryer paneli
+
+supabase/
+├── migrations/       # SQL migration-lar (tətbiq ardıcıllığı ilə)
+├── schema_full.sql   # hamısı bir faylda (SQL Editor üçün)
+└── tests/            # RLS və bütövlük testləri
 ```

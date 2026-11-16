@@ -21,6 +21,13 @@
     <string name="role_admin">Admin</string>
     <string name="role_courier">Kuryer</string>
 
+    <!-- Backend status (debug panel) -->
+    <string name="backend_checking">Server: yoxlanılır…</string>
+    <string name="backend_not_configured">Server: konfiqurasiya edilməyib (SUPABASE_URL / SUPABASE_ANON_KEY)</string>
+    <string name="backend_connected">Server: qoşulub — %1$s · kateqoriya sayı: %2$d · %3$d ms</string>
+    <string name="backend_unreachable">Server: əlçatmazdır (%1$s)</string>
+    <string name="action_retry">Yenidən</string>
+
     <!-- Placeholders -->
     <string name="stage_badge">Mərhələ %1$d</string>
     <string name="placeholder_body">Bu bölmə hələ hazır deyil və %1$d-ci mərhələdə real backend ilə qurulacaq.</string>

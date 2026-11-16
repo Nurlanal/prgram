@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CardGiftcard
+import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.LocalOffer
 import androidx.compose.material.icons.outlined.LocalShipping
 import androidx.compose.material3.Button
@@ -35,13 +36,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import az.market.app.R
 import az.market.app.core.designsystem.component.MarketLogoMark
+import az.market.app.core.designsystem.theme.LocalMarketColors
+import az.market.app.core.designsystem.theme.LocalStoreSettings
 import az.market.app.core.designsystem.theme.MarketTheme
 import az.market.app.core.designsystem.theme.Spacing
 import az.market.app.core.model.UserRole
+import az.market.app.data.store.BackendStatus
 
 @Composable
 fun WelcomeScreen(
@@ -49,6 +55,8 @@ fun WelcomeScreen(
     onRegister: () -> Unit,
     showDevRolePreview: Boolean,
     onDevPreviewRole: (UserRole) -> Unit,
+    backendStatus: BackendStatus = BackendStatus.Checking,
+    onRetryBackend: () -> Unit = {},
 ) {
     val primary = MaterialTheme.colorScheme.primary
     Column(
@@ -70,7 +78,7 @@ fun WelcomeScreen(
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
                 MarketLogoMark(size = 72.dp)
                 Text(
-                    stringResource(R.string.app_name),
+                    LocalStoreSettings.current.storeName,
                     style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onPrimary,
                 )
@@ -121,12 +129,36 @@ fun WelcomeScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                BackendStatusRow(backendStatus, onRetryBackend)
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     TextButton(onClick = { onDevPreviewRole(UserRole.CUSTOMER) }) { Text(stringResource(R.string.role_customer)) }
                     TextButton(onClick = { onDevPreviewRole(UserRole.ADMIN) }) { Text(stringResource(R.string.role_admin)) }
                     TextButton(onClick = { onDevPreviewRole(UserRole.COURIER) }) { Text(stringResource(R.string.role_courier)) }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun BackendStatusRow(status: BackendStatus, onRetry: () -> Unit) {
+    val (text, color) = when (status) {
+        BackendStatus.Checking -> stringResource(R.string.backend_checking) to MaterialTheme.colorScheme.onSurfaceVariant
+        BackendStatus.NotConfigured -> stringResource(R.string.backend_not_configured) to MaterialTheme.colorScheme.error
+        is BackendStatus.Connected -> stringResource(
+            R.string.backend_connected, status.storeName, status.categoryCount, status.latencyMs,
+        ) to LocalMarketColors.current.success
+        is BackendStatus.Unreachable -> stringResource(R.string.backend_unreachable, status.reason) to MaterialTheme.colorScheme.error
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        modifier = Modifier.semantics { testTag = "backend_status" },
+    ) {
+        Icon(Icons.Outlined.Dns, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+        Text(text, style = MaterialTheme.typography.bodySmall, color = color, modifier = Modifier.weight(1f))
+        if (status is BackendStatus.Unreachable) {
+            TextButton(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
         }
     }
 }
