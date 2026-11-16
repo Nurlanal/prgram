@@ -63,6 +63,10 @@ Migration-lar: `supabase/migrations/` (tək fayl: `supabase/schema_full.sql`).
 | Bonus kartı / tarixçə | — | öz (oxu) | — | hamısı (oxu) |
 | Audit log | — | — | — | oxu |
 
+*Admin sütunu = admin rolu **və** MFA ilə daxil olmuş sessiya (`aal2`). Parolla daxil olmuş, MFA keçməmiş admin müştəridən artıq heç nə edə bilmir.*
+
+Rol **heç vaxt** JWT-dən və ya istifadəçinin redaktə edə bildiyi metadata-dan götürülmür — yalnız `user_roles` cədvəlindən (`current_app_role()`), hesab aktiv olmalıdır. Bloklanmış hesab öz tarixçəsini görür, amma heç nə yaza bilmir.
+
 **Pul, stok, bonus, sifariş və rol** üçün klientdə yazma yolu **yoxdur** — bunlar yalnız `SECURITY DEFINER` server funksiyaları ilə dəyişəcək (Mərhələ 3, 7, 10, 11). Bazada əlavə zəmanətlər: `stock >= 0`, `bonus balance >= 0`, `total = subtotal − discount − bonus + fee`, sifarişdə `idempotency_key`, eyni sifariş üçün bonus bir dəfə, sonuncu admin silinə bilməz.
 
 ### Android ↔ Supabase

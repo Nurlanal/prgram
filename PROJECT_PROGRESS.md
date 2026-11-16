@@ -7,7 +7,7 @@
 | # | Mərhələ | Status |
 |---|---|---|
 | 1 | Layihənin təməli | ✅ Tamamlandı, təsdiqləndi |
-| 2 | Backend və məlumat bazası (Supabase) | ✅ Kod tamamlandı — canlı Supabase bağlantısı açarlar gələndə yoxlanacaq |
+| 2 | Backend və məlumat bazası (Supabase) | ✅ Kod + təhlükəsizlik yoxlaması tamamlandı (təsdiq gözlənilir); canlı Supabase bağlantısı açarlar gələndə |
 | 3 | Qeydiyyat və giriş | ⏳ Növbəti |
 | 4 | Müştəri ana səhifəsi | — |
 | 5 | Məhsul və kateqoriyalar | — |
@@ -22,7 +22,7 @@
 | 14 | Təhlükəsizlik və tam test | — |
 | 15 | APK build (imzalı release) | — |
 
-**Cari mərhələ:** 2 tamamlandı (istifadəçi təsdiqi + Supabase açarları gözlənilir) → Mərhələ 3.
+**Cari mərhələ:** 2 tamamlandı, təhlükəsizlik yoxlaması aparıldı → Mərhələ 3 üçün istifadəçi təsdiqi gözlənilir.
 
 ## Mərhələ 1 — nə edildi
 
@@ -44,6 +44,20 @@
 - `StoreSettingsRepository`: `app_settings` oxunur və Realtime ilə izlənir → brend rəngi/market adı tətbiqdə canlı dəyişir. Debug panelində server statusu.
 - `docs/BACKEND_SETUP.md`, `supabase/schema_full.sql`, `docs/test-reports/stage2-database.md`.
 
+## Mərhələ 2 — təhlükəsizlik yoxlaması (istifadəçi tələbi ilə)
+
+Hesabat: `docs/test-reports/stage2-security-review.md`.
+
+- Parol heç bir public cədvəldə saxlanılmır (avtomatik test ilə qorunur); parollar yalnız Supabase Auth-da bcrypt hash kimi.
+- Yeni migration `20261116000007_security_hardening.sql`:
+  1. Admin hüquqları rol + **MFA (aal2)** tələb edir.
+  2. Telefon yalnız təsdiqlənmiş `auth.users.phone`-dan (nömrə zəbti / qeydiyyat DoS düzəldildi).
+  3. Bloklanmış hesablar yaza bilmir.
+  4. `PUBLIC` funksiya icazələri bağlandı.
+- 41 yeni DB yoxlaması (cəmi 135): parol sütunu yoxdur, RLS hər cədvəldə, view yoxdur, anon yalnız kataloq oxuyur, saxta JWT claim-ləri, metadata ilə rol dəyişmə cəhdi, MFA-sız admin, kuryerin admin datasına girişi, telefon zəbti, bloklanmış hesab.
+- Yeni testlər düzəlişsiz migration-lara qarşı işlədildi: 9 uğursuzluq + çökmə (problemlər real idi), düzəlişdən sonra 135/135.
+- Gradle `verifyNoSecretsIn{Debug,Release}Apk` — hər build-dən sonra APK skan olunur; yerləşdirilmiş saxta service_role açarı ilə yoxlanıldı (build dayandı).
+
 ## Yaradılmış əsas fayllar
 
 - `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties`, `gradle/libs.versions.toml`, `gradlew`
@@ -55,7 +69,8 @@
 
 ## Test nəticələri (Mərhələ 2)
 
-- Verilənlər bazası: 94/94 yoxlama (`supabase/tests/run_local_tests.sh`, PostgreSQL 16 + Supabase shim).
+- Verilənlər bazası: 135/135 yoxlama (təhlükəsizlik yoxlamasından sonra; `supabase/tests/run_local_tests.sh`, PostgreSQL 16 + Supabase shim).
+- APK skaneri: debug + release APK-da server sirri yoxdur (yalnız gözlənilən public anon key).
 - Android: 26/26 test (yeni: BackendConfig, DTO kontrakt testləri real DB sətirləri ilə, MockEngine üzərindən real supabase-kt sorğuları, RootViewModel Realtime/status).
 - debug + release build, lint 0 xəta. Gizli açar qoruyucusu yoxlanıldı (service_role açarı ilə build dayanır).
 - **Yoxlanılmayıb:** real Supabase layihəsinə canlı qoşulma (açarlar hələ verilməyib); release APK-nın cihazda işləməsi.
@@ -72,6 +87,8 @@
 - Real Supabase layihəsi hələ yoxdur → istifadəçi `docs/BACKEND_SETUP.md` üzrə yaradıb URL + anon key verməlidir.
 - Klient yazma yolu olmayan cədvəllər (orders, bonus, rollar, stok sayı) üçün server funksiyaları sonrakı mərhələlərdə: rol/kuryer (3, 10), sifariş+stok (7), bonus (11), stok idarəsi (9).
 - Qeyd: supabase-kt sessiyanı standart SharedPreferences-də saxlayır; Mərhələ 3-də şifrələnmiş saxlama ilə əvəz olunacaq.
+- Admin MFA məcburidir: Mərhələ 3-də admin üçün TOTP qoşulma + kod daxiletmə ekranı lazımdır; o vaxta qədər admin əməliyyatları mümkün deyil.
+- Real layihədə Auth parametrləri (`docs/BACKEND_SETUP.md` §4: min. parol uzunluğu, MFA TOTP, anonim girişin söndürülməsi) əl ilə qurulmalıdır.
 
 ## Açıq qalan məsələlər / istifadəçidən lazım olanlar
 
@@ -85,4 +102,4 @@
 ## Növbəti iş
 
 1. İstifadəçi Supabase URL + anon key verəndə: migration-ları tətbiq etmək, canlı bağlantı testi.
-2. Mərhələ 3 — Qeydiyyat və giriş (telefon + şifrə, SMS təsdiqi, admin email girişi, kuryer hesabı, şifrə bərpası).
+2. Mərhələ 3 — Qeydiyyat və giriş (telefon + şifrə, SMS təsdiqi, admin email girişi + MFA, kuryer hesabı, şifrə bərpası, şifrələnmiş sessiya).

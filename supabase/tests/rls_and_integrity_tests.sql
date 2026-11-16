@@ -39,9 +39,14 @@ begin
   perform tests.ok(label);
 end $$;
 
-create function tests.as_user(uid uuid) returns void language plpgsql as $$
+-- Simulates the verified JWT of a signed-in user. aal2 = signed in with password + MFA code.
+create function tests.as_user(uid uuid, aal text default 'aal1') returns void language plpgsql as $$
 begin
-  perform set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, false);
+  perform set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated', 'aal', aal)::text, false);
+end $$;
+create function tests.as_claims(claims jsonb) returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', claims::text, false);
 end $$;
 grant execute on all functions in schema tests to anon, authenticated;
 
@@ -49,10 +54,11 @@ grant execute on all functions in schema tests to anon, authenticated;
 -- Fixtures (created as the database owner, like Supabase Auth would)
 -- ---------------------------------------------------------------------
 -- A tries to self-assign "admin" via sign-up metadata: must be ignored.
-insert into auth.users (id, phone, raw_user_meta_data) values
-  ('00000000-0000-0000-0000-00000000000a', '994501112233', '{"first_name":"Aysel","last_name":"Məmmədova","role":"admin"}'),
-  ('00000000-0000-0000-0000-00000000000b', '994502223344', '{"first_name":"Bəhruz","last_name":"Əliyev"}'),
-  ('00000000-0000-0000-0000-00000000000c', '994503334455', '{"first_name":"Kamran","last_name":"Kuryer"}');
+insert into auth.users (id, phone, encrypted_password, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-00000000000a', '994501112233', '$2a$10$abcdefghijklmnopqrstuuJ2Fz7m4cE7h0Qw3m4cE7h0Qw3m4cE7h',
+   '{"first_name":"Aysel","last_name":"Məmmədova","role":"admin","phone":"+994509999999"}'),
+  ('00000000-0000-0000-0000-00000000000b', '994502223344', null, '{"first_name":"Bəhruz","last_name":"Əliyev"}'),
+  ('00000000-0000-0000-0000-00000000000c', '994503334455', null, '{"first_name":"Kamran","last_name":"Kuryer"}');
 insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-0000-0000-0000000000ad', 'owner@market.test', '{"first_name":"Sahib"}');
 
@@ -240,9 +246,9 @@ select tests.as_user('00000000-0000-0000-0000-00000000000c');
 select tests.expect_count($$select 1 from public.orders$$, 0, 'courier: unassigned orders are invisible');
 reset role;
 
--- 9. Admin ---------------------------------------------------------------
+-- 9. Admin (signed in with password + MFA) -------------------------------
 set role authenticated;
-select tests.as_user('00000000-0000-0000-0000-0000000000ad');
+select tests.as_user('00000000-0000-0000-0000-0000000000ad', 'aal2');
 select tests.expect_count($$select 1 from public.profiles$$, 4, 'admin: sees all profiles');
 select tests.expect_count($$select 1 from public.orders$$, 1, 'admin: sees all orders');
 select tests.expect_count($$select 1 from public.products$$, 2, 'admin: sees inactive products too');
@@ -268,9 +274,137 @@ select tests.expect_true(
 -- 10. Deactivated admin loses access immediately --------------------------
 update public.profiles set is_active = false where id = '00000000-0000-0000-0000-0000000000ad';
 set role authenticated;
-select tests.as_user('00000000-0000-0000-0000-0000000000ad');
+select tests.as_user('00000000-0000-0000-0000-0000000000ad', 'aal2');
 select tests.expect_count($$select 1 from public.orders$$, 0, 'deactivated admin: loses admin access');
 reset role;
 update public.profiles set is_active = true where id = '00000000-0000-0000-0000-0000000000ad';
+
+-- =====================================================================
+-- SECURITY REVIEW CHECKS (Stage 2 hardening)
+-- =====================================================================
+
+-- 11. Passwords are never stored in application tables -----------------
+select tests.expect_count($$select 1 from information_schema.columns
+                            where table_schema = 'public'
+                              and column_name ~* '(pass|pwd|secret|hash|salt|pin_code|otp)'$$,
+                          0, 'security: no password / secret / hash column in any public table');
+select tests.expect_count($$select 1 from information_schema.columns
+                            where table_schema = 'public' and table_name = 'profiles'
+                              and column_name not in ('id','first_name','last_name','phone','email','avatar_url','is_active','created_at','updated_at')$$,
+                          0, 'security: profiles contains only non-secret identity fields');
+select tests.expect_true((select encrypted_password like '$2a$%' from auth.users where id = '00000000-0000-0000-0000-00000000000a'),
+                         'security: Supabase Auth keeps only a bcrypt hash (auth.users)');
+select tests.expect_count($$select 1 from public.audit_logs where new_data::text ~* 'encrypted_password|\$2a\$' or old_data::text ~* 'encrypted_password|\$2a\$'$$,
+                          0, 'security: password hashes never copied into the audit log');
+set role authenticated;
+select tests.as_user('00000000-0000-0000-0000-00000000000a');
+select tests.expect_error($$select encrypted_password from auth.users$$, '42501', 'security: API users cannot read auth.users / password hashes');
+reset role;
+set role anon;
+select tests.expect_error($$select * from auth.users$$, '42501', 'security: anon cannot read auth.users');
+reset role;
+
+-- 12. RLS everywhere, no bypass paths ----------------------------------------
+select tests.expect_count($$select 1 from pg_class where relnamespace = 'public'::regnamespace and relkind in ('r','p') and not relrowsecurity$$,
+                          0, 'security: RLS enabled on every public table');
+select tests.expect_count($$select 1 from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'
+                            and not exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = c.relname)$$,
+                          0, 'security: every public table has explicit policies');
+select tests.expect_count($$select 1 from pg_class where relnamespace = 'public'::regnamespace and relkind in ('v','m')$$,
+                          0, 'security: no views / materialized views that could bypass RLS');
+select tests.expect_count($$select 1 from information_schema.role_table_grants
+                            where grantee = 'anon' and table_schema = 'public'
+                              and (privilege_type <> 'SELECT' or table_name not in
+                                   ('app_settings','banners','categories','delivery_zones','inventory','product_images','products','promotions'))$$,
+                          0, 'security: anon has read-only access to catalogue tables only');
+select tests.expect_count($$select 1 from information_schema.role_table_grants
+                            where grantee = 'authenticated' and table_schema = 'public' and privilege_type in ('INSERT','UPDATE','DELETE')
+                              and table_name in ('orders','order_items','order_status_history','bonus_cards','bonus_transactions',
+                                                 'user_roles','payment_transactions','audit_logs','carts')$$,
+                          0, 'security: no client write privilege on orders / bonus / roles / payments / audit');
+select tests.expect_count($$select 1 from information_schema.column_privileges
+                            where grantee = 'authenticated' and table_schema = 'public' and privilege_type = 'UPDATE'
+                              and ((table_name = 'inventory' and column_name = 'quantity')
+                                   or (table_name = 'profiles' and column_name in ('phone','email','is_active','id')))$$,
+                          0, 'security: stock quantity and profile identity/status columns not client-writable');
+select tests.expect_count($$select 1 from pg_proc where pronamespace = 'public'::regnamespace and prosecdef and proconfig is null$$,
+                          0, 'security: every SECURITY DEFINER function pins search_path');
+select tests.expect_count($$select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace
+                              and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute'))
+                              and p.proname not in ('current_app_role','is_admin','is_courier','is_customer','is_active_user')$$,
+                          0, 'security: only the read-only role helpers are callable through the API');
+select tests.expect_true(not has_function_privilege('service_role', 'public.bootstrap_first_admin(text)', 'execute'),
+                         'security: even the service_role key cannot call the admin bootstrap');
+
+-- 13. Admin access requires a verified admin role AND MFA -------------------
+set role authenticated;
+select tests.as_user('00000000-0000-0000-0000-0000000000ad', 'aal1');   -- correct password, no MFA
+select tests.expect_true(public.current_app_role() = 'admin' and not public.is_admin(),
+                         'admin without MFA: role is known (app asks for the code) but no admin rights');
+select tests.expect_count($$select 1 from public.profiles$$, 1, 'admin without MFA: cannot list customers');
+select tests.expect_count($$select 1 from public.audit_logs$$, 0, 'admin without MFA: cannot read the audit log');
+select tests.expect_count($$select 1 from public.product_costs$$, 0, 'admin without MFA: cannot read purchase prices');
+select tests.expect_error($$insert into public.categories (name, slug) values ('Hack', 'hack')$$, '42501', 'admin without MFA: cannot change the catalogue');
+select tests.expect_error($$insert into storage.objects (bucket_id, name) values ('branding', 'logo.png')$$, '42501', 'admin without MFA: cannot upload files');
+update public.app_settings set store_name = 'hacked';
+reset role;
+select tests.expect_true((select store_name from public.app_settings) = 'Market', 'admin without MFA: settings update has no effect');
+
+-- Forged / unexpected JWT claims never grant admin: the role is read from user_roles, not from the token.
+set role authenticated;
+select tests.as_claims('{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated","aal":"aal2",
+                         "user_role":"admin","app_metadata":{"role":"admin"},"user_metadata":{"role":"admin"}}');
+select tests.expect_true(public.current_app_role() = 'customer' and not public.is_admin(),
+                         'customer with forged admin claims + MFA is still a customer');
+select tests.expect_count($$select 1 from public.profiles$$, 1, 'forged claims: still sees only own profile');
+select tests.as_claims('{"sub":"99999999-9999-9999-9999-999999999999","role":"authenticated","aal":"aal2"}');
+select tests.expect_true(public.current_app_role() is null and not public.is_admin(), 'unknown user id gets no role');
+select tests.expect_count($$select 1 from public.profiles$$, 0, 'unknown user id sees no personal data');
+select tests.as_claims('{}');
+select tests.expect_count($$select 1 from public.user_roles$$, 0, 'request without user id sees no roles');
+reset role;
+
+-- User-editable auth metadata changed after sign-up does not change the role.
+update auth.users set raw_user_meta_data = '{"role":"admin"}' where id = '00000000-0000-0000-0000-00000000000b';
+select tests.expect_true((select role from public.user_roles where user_id = '00000000-0000-0000-0000-00000000000b') = 'customer',
+                         'changing auth user metadata cannot change the role');
+
+-- Courier cannot reach admin data.
+set role authenticated;
+select tests.as_user('00000000-0000-0000-0000-00000000000c', 'aal2');
+select tests.expect_true(not public.is_admin(), 'courier with MFA is not an admin');
+select tests.expect_count($$select 1 from public.audit_logs$$, 0, 'courier: cannot read the audit log');
+select tests.expect_count($$select 1 from public.product_costs$$, 0, 'courier: cannot read purchase prices');
+select tests.expect_count($$select 1 from public.user_roles$$, 1, 'courier: sees only own role');
+select tests.expect_error($$insert into public.products (name, price) values ('x', 1)$$, '42501', 'courier: cannot create products');
+reset role;
+
+-- 14. Identity: sign-up cannot claim someone else's phone number --------------
+select tests.expect_true((select phone from public.profiles where id = '00000000-0000-0000-0000-00000000000a') = '+994501112233',
+                         'phone comes from verified auth phone, not from metadata');
+insert into auth.users (id, email, raw_user_meta_data)
+values ('00000000-0000-0000-0000-0000000000e1', 'squatter@test.az', '{"phone":"+994507778899"}');
+select tests.expect_true((select phone is null from public.profiles where id = '00000000-0000-0000-0000-0000000000e1'),
+                         'email sign-up cannot set an unverified phone number');
+insert into auth.users (id, phone) values ('00000000-0000-0000-0000-0000000000e2', '994507778899');
+select tests.expect_true((select phone from public.profiles where id = '00000000-0000-0000-0000-0000000000e2') = '+994507778899',
+                         'the real owner of the phone can still register');
+
+-- 15. Blocked accounts cannot write ---------------------------------------------
+update public.profiles set is_active = false where id = '00000000-0000-0000-0000-00000000000a';
+set role authenticated;
+select tests.as_user('00000000-0000-0000-0000-00000000000a');
+select tests.expect_count($$select 1 from public.orders$$, 1, 'blocked customer: can still see own order history');
+select tests.expect_error(format($f$insert into public.cart_items (cart_id, product_id, quantity) values (%L, '11111111-1111-1111-1111-111111111111', 1)$f$, :'a_cart'),
+                          '42501', 'blocked customer: cannot add to cart');
+select tests.expect_error($$insert into public.delivery_addresses (customer_id, address_line) values (auth.uid(), 'Yeni ünvan')$$,
+                          '42501', 'blocked customer: cannot add addresses');
+select tests.expect_error($$insert into public.device_tokens (token, user_id) values ('fcm-token-1', auth.uid())$$,
+                          '42501', 'blocked customer: cannot register for push');
+update public.profiles set first_name = 'blocked-edit' where id = auth.uid();
+reset role;
+select tests.expect_true((select first_name from public.profiles where id = '00000000-0000-0000-0000-00000000000a') = 'Aysel2',
+                         'blocked customer: profile edit has no effect');
+update public.profiles set is_active = true where id = '00000000-0000-0000-0000-00000000000a';
 
 select 'ALL CHECKS PASSED' as result;

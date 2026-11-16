@@ -1,5 +1,6 @@
 import java.util.Base64
 import java.util.Properties
+import java.util.zip.ZipFile
 
 plugins {
     alias(libs.plugins.android.application)
@@ -143,4 +144,51 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+}
+
+// ---- Release safety net: fail the build if a server secret ever ends up inside an APK ----
+abstract class VerifyNoSecretsInApk : DefaultTask() {
+    @get:InputFiles
+    abstract val apkDirectory: ConfigurableFileCollection
+
+    @TaskAction
+    fun scan() {
+        val jwt = Regex("eyJ[A-Za-z0-9_-]{8,}\\.(eyJ[A-Za-z0-9_-]{8,})\\.[A-Za-z0-9_-]{8,}")
+        val patterns = mapOf(
+            "Supabase secret key" to Regex("sb_secret_[A-Za-z0-9_-]{10,}"),
+            "private key" to Regex("-----BEGIN (RSA |EC )?PRIVATE KEY-----"),
+            "service account JSON" to Regex("\"type\"\\s*:\\s*\"service_account\""),
+        )
+        val findings = mutableListOf<String>()
+        val apks = apkDirectory.asFileTree.matching { include("**/*.apk") }.files
+        apks.forEach { apk ->
+            ZipFile(apk).use { zip ->
+                zip.entries().asSequence().filter { !it.isDirectory }.forEach { entry ->
+                    // ISO-8859-1 maps every byte 1:1, so binary dex content can be regex-scanned safely.
+                    val text = zip.getInputStream(entry).readBytes().toString(Charsets.ISO_8859_1)
+                    patterns.forEach { (label, rx) -> if (rx.containsMatchIn(text)) findings += "${apk.name}!${entry.name}: $label" }
+                    jwt.findAll(text).forEach { m ->
+                        val payload = runCatching {
+                            String(Base64.getUrlDecoder().decode(m.groupValues[1]))
+                        }.getOrDefault("")
+                        if (Regex("\"role\"\\s*:\\s*\"service_role\"").containsMatchIn(payload)) {
+                            findings += "${apk.name}!${entry.name}: Supabase service_role JWT"
+                        }
+                    }
+                }
+            }
+        }
+        if (findings.isNotEmpty()) {
+            throw GradleException("Server secrets found in APK:\n" + findings.joinToString("\n"))
+        }
+        logger.lifecycle("verifyNoSecretsInApk: ${apks.size} APK(s) scanned, no server secrets found")
+    }
+}
+
+listOf("debug", "release").forEach { variant ->
+    val cap = variant.replaceFirstChar { it.uppercase() }
+    val verify = tasks.register<VerifyNoSecretsInApk>("verifyNoSecretsIn${cap}Apk") {
+        apkDirectory.from(layout.buildDirectory.dir("outputs/apk/$variant"))
+    }
+    tasks.matching { it.name == "assemble$cap" }.configureEach { finalizedBy(verify) }
 }

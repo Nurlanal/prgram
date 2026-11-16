@@ -12,6 +12,7 @@ create table auth.users (
   id uuid primary key default gen_random_uuid(),
   email text unique,
   phone text unique,
+  encrypted_password text,          -- bcrypt hash, as in Supabase Auth
   raw_user_meta_data jsonb,
   created_at timestamptz not null default now()
 );
@@ -20,8 +21,12 @@ create function auth.uid() returns uuid language sql stable as $$
   select nullif(coalesce(nullif(current_setting('request.jwt.claim.sub', true), ''),
                          nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'), '')::uuid
 $$;
+create function auth.jwt() returns jsonb language sql stable as $$
+  select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb)
+$$;
+-- As in Supabase: the API roles may call the helpers but cannot read auth.users.
 grant usage on schema auth to anon, authenticated, service_role;
-grant execute on function auth.uid() to anon, authenticated, service_role;
+grant execute on function auth.uid(), auth.jwt() to anon, authenticated, service_role;
 
 create schema storage;
 create table storage.buckets (

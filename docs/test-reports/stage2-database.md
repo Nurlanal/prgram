@@ -2,7 +2,7 @@
 
 Mühit: PostgreSQL 16 + Supabase shim (`supabase/tests/00_supabase_shim.sql`). Əmr: `supabase/tests/run_local_tests.sh`.
 
-Nəticə: **94 / 94 keçdi**, 0 uğursuz.
+Nəticə: **135 / 135 keçdi**, 0 uğursuz. (Təhlükəsizlik yoxlamasından sonra; əvvəl 94 idi.)
 
 | # | Yoxlama |
 |---|---|
@@ -100,3 +100,44 @@ Nəticə: **94 / 94 keçdi**, 0 uğursuz.
 | 92 | admin: invalid brand color rejected |
 | 93 | audit log records who changed a price |
 | 94 | deactivated admin: loses admin access |
+| 95 | security: no password / secret / hash column in any public table |
+| 96 | security: profiles contains only non-secret identity fields |
+| 97 | security: Supabase Auth keeps only a bcrypt hash (auth.users) |
+| 98 | security: password hashes never copied into the audit log |
+| 99 | security: API users cannot read auth.users / password hashes |
+| 100 | security: anon cannot read auth.users |
+| 101 | security: RLS enabled on every public table |
+| 102 | security: every public table has explicit policies |
+| 103 | security: no views / materialized views that could bypass RLS |
+| 104 | security: anon has read-only access to catalogue tables only |
+| 105 | security: no client write privilege on orders / bonus / roles / payments / audit |
+| 106 | security: stock quantity and profile identity/status columns not client-writable |
+| 107 | security: every SECURITY DEFINER function pins search_path |
+| 108 | security: only the read-only role helpers are callable through the API |
+| 109 | security: even the service_role key cannot call the admin bootstrap |
+| 110 | admin without MFA: role is known (app asks for the code) but no admin rights |
+| 111 | admin without MFA: cannot list customers |
+| 112 | admin without MFA: cannot read the audit log |
+| 113 | admin without MFA: cannot read purchase prices |
+| 114 | admin without MFA: cannot change the catalogue |
+| 115 | admin without MFA: cannot upload files |
+| 116 | admin without MFA: settings update has no effect |
+| 117 | customer with forged admin claims + MFA is still a customer |
+| 118 | forged claims: still sees only own profile |
+| 119 | unknown user id gets no role |
+| 120 | unknown user id sees no personal data |
+| 121 | request without user id sees no roles |
+| 122 | changing auth user metadata cannot change the role |
+| 123 | courier with MFA is not an admin |
+| 124 | courier: cannot read the audit log |
+| 125 | courier: cannot read purchase prices |
+| 126 | courier: sees only own role |
+| 127 | courier: cannot create products |
+| 128 | phone comes from verified auth phone, not from metadata |
+| 129 | email sign-up cannot set an unverified phone number |
+| 130 | the real owner of the phone can still register |
+| 131 | blocked customer: can still see own order history |
+| 132 | blocked customer: cannot add to cart |
+| 133 | blocked customer: cannot add addresses |
+| 134 | blocked customer: cannot register for push |
+| 135 | blocked customer: profile edit has no effect |
