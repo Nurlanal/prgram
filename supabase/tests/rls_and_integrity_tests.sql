@@ -331,8 +331,10 @@ select tests.expect_count($$select 1 from pg_proc where pronamespace = 'public':
                           0, 'security: every SECURITY DEFINER function pins search_path');
 select tests.expect_count($$select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace
                               and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute'))
-                              and p.proname not in ('current_app_role','is_admin','is_courier','is_customer','is_active_user')$$,
-                          0, 'security: only the read-only role helpers are callable through the API');
+                              and p.proname not in ('current_app_role','is_admin','is_courier','is_customer','is_active_user')
+                              and not (p.proname in ('get_my_account','admin_make_courier','admin_set_user_active')
+                                       and not has_function_privilege('anon', p.oid, 'execute'))$$,
+                          0, 'security: only role helpers (+ signed-in account / admin RPCs) are callable through the API');
 select tests.expect_true(not has_function_privilege('service_role', 'public.bootstrap_first_admin(text)', 'execute'),
                          'security: even the service_role key cannot call the admin bootstrap');
 
@@ -406,5 +408,95 @@ reset role;
 select tests.expect_true((select first_name from public.profiles where id = '00000000-0000-0000-0000-00000000000a') = 'Aysel2',
                          'blocked customer: profile edit has no effect');
 update public.profiles set is_active = true where id = '00000000-0000-0000-0000-00000000000a';
+
+-- =====================================================================
+-- STAGE 3: authentication functions
+-- =====================================================================
+
+-- 16. Registration with address ------------------------------------------------
+insert into auth.users (id, phone, encrypted_password, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-0000000000f1', '994551234567', '$2a$10$hash',
+   '{"first_name":" Leyla ","last_name":"Həsənova","address_line":"Nizami küç. 12, mən. 5","settlement":"Qəbələ"}');
+select tests.expect_true((select first_name from public.profiles where id = '00000000-0000-0000-0000-0000000000f1') = 'Leyla',
+                         'registration: names are trimmed');
+select tests.expect_true(
+  (select d.address_line = 'Nizami küç. 12, mən. 5' and d.settlement = 'Qəbələ' and d.is_default and d.contact_phone = '+994551234567'
+          and c.default_address_id = d.id
+   from public.delivery_addresses d join public.customers c on c.id = d.customer_id
+   where d.customer_id = '00000000-0000-0000-0000-0000000000f1'),
+  'registration: address saved atomically as default delivery address');
+insert into auth.users (id, phone, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-0000000000f2', '994551234568', '{"first_name":"X","address_line":"a"}');
+select tests.expect_count($$select 1 from public.delivery_addresses where customer_id = '00000000-0000-0000-0000-0000000000f2'$$,
+                          0, 'registration: too-short address is ignored, account still created');
+
+-- 17. get_my_account ----------------------------------------------------------
+set role authenticated;
+select tests.as_user('00000000-0000-0000-0000-0000000000f1');
+select tests.expect_true((select public.get_my_account() ->> 'role') = 'customer'
+                         and (select (public.get_my_account() ->> 'is_active')::boolean),
+                         'get_my_account: returns own role and status');
+select tests.as_user('00000000-0000-0000-0000-00000000000c');
+select tests.expect_true((select public.get_my_account() ->> 'role') = 'courier', 'get_my_account: courier role');
+select tests.as_user('00000000-0000-0000-0000-0000000000ad');
+select tests.expect_true((select public.get_my_account() ->> 'role') = 'admin', 'get_my_account: admin role visible before MFA (for routing)');
+select tests.as_claims('{}');
+select tests.expect_true(public.get_my_account() is null, 'get_my_account: nothing without a signed-in user');
+reset role;
+set role anon;
+select tests.expect_error($$select public.get_my_account()$$, '42501', 'get_my_account: not callable by anon');
+reset role;
+
+-- 18. Courier creation (admin only, with MFA) ----------------------------------
+insert into auth.users (id, phone, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-0000000000c2', '994707654321', '{"first_name":"Orxan","last_name":"Kuryer"}');
+set role authenticated;
+select tests.as_user('00000000-0000-0000-0000-0000000000f1');
+select tests.expect_error($$select public.admin_make_courier('00000000-0000-0000-0000-0000000000c2')$$, '42501',
+                          'courier creation: customer cannot create couriers');
+select tests.as_user('00000000-0000-0000-0000-00000000000c', 'aal2');
+select tests.expect_error($$select public.admin_make_courier('00000000-0000-0000-0000-0000000000c2')$$, '42501',
+                          'courier creation: courier cannot create couriers');
+select tests.as_user('00000000-0000-0000-0000-0000000000ad', 'aal1');
+select tests.expect_error($$select public.admin_make_courier('00000000-0000-0000-0000-0000000000c2')$$, '42501',
+                          'courier creation: admin without MFA cannot create couriers');
+select tests.as_user('00000000-0000-0000-0000-0000000000ad', 'aal2');
+select public.admin_make_courier('00000000-0000-0000-0000-0000000000c2', 'Moped 10-AB-123');
+reset role;
+select tests.expect_true(
+  (select r.role = 'courier' and c.created_by = '00000000-0000-0000-0000-0000000000ad' and c.vehicle_info = 'Moped 10-AB-123'
+   from public.user_roles r join public.couriers c on c.id = r.user_id where r.user_id = '00000000-0000-0000-0000-0000000000c2'),
+  'courier creation: admin with MFA creates courier, creator recorded');
+select tests.expect_count($$select 1 from public.bonus_cards b where b.customer_id = '00000000-0000-0000-0000-0000000000c2'$$,
+                          0, 'courier creation: courier has no customer cart / bonus card');
+select tests.expect_true(exists (select 1 from public.audit_logs where table_name = 'user_roles' and record_id = '00000000-0000-0000-0000-0000000000c2'
+                                 and actor_id = '00000000-0000-0000-0000-0000000000ad'),
+                         'courier creation: audited with the admin as actor');
+set role authenticated;
+select tests.as_user('00000000-0000-0000-0000-0000000000ad', 'aal2');
+select tests.expect_error($$select public.admin_make_courier('00000000-0000-0000-0000-0000000000c2')$$, '22023',
+                          'courier creation: cannot re-promote an existing courier');
+select tests.expect_error($$select public.admin_make_courier('00000000-0000-0000-0000-00000000000a')$$, '22023',
+                          'courier creation: a customer with orders cannot become a courier');
+select tests.expect_error($$select public.admin_make_courier('00000000-0000-0000-0000-0000000000ad')$$, '22023',
+                          'courier creation: an admin cannot be turned into a courier');
+reset role;
+
+-- 19. Block / unblock ------------------------------------------------------------
+set role authenticated;
+select tests.as_user('00000000-0000-0000-0000-0000000000f1');
+select tests.expect_error($$select public.admin_set_user_active('00000000-0000-0000-0000-0000000000c2', false)$$, '42501',
+                          'blocking: customers cannot block accounts');
+select tests.as_user('00000000-0000-0000-0000-0000000000ad', 'aal2');
+select tests.expect_error($$select public.admin_set_user_active('00000000-0000-0000-0000-0000000000ad', false)$$, '22023',
+                          'blocking: admin cannot block themselves');
+select public.admin_set_user_active('00000000-0000-0000-0000-0000000000c2', false);
+select tests.as_user('00000000-0000-0000-0000-0000000000c2', 'aal1');
+select tests.expect_true((select (public.get_my_account() ->> 'is_active')::boolean) = false and not public.is_courier(),
+                         'blocking: blocked courier sees blocked status and loses courier rights');
+select tests.as_user('00000000-0000-0000-0000-0000000000ad', 'aal2');
+select public.admin_set_user_active('00000000-0000-0000-0000-0000000000c2', true);
+reset role;
+select tests.expect_count($$select 1 from public.audit_logs where action in ('BLOCK_USER','UNBLOCK_USER')$$, 2, 'blocking: audited');
 
 select 'ALL CHECKS PASSED' as result;

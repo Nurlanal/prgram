@@ -1,7 +1,10 @@
 package az.market.app.data.remote
 
 import io.github.jan.supabase.SupabaseClient
+import az.market.app.data.auth.MemoryCodeVerifierCache
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.SessionManager
+import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
@@ -26,14 +29,24 @@ fun createMarketSupabaseClient(
     config: BackendConfig,
     engine: HttpClientEngine? = null,
     withAuth: Boolean = true,
+    sessionManager: SessionManager? = null,
+    androidLifecycle: Boolean = true,
 ): SupabaseClient {
     require(config.isConfigured) { "Supabase is not configured" }
     return createSupabaseClient(supabaseUrl = config.url.trimEnd('/'), supabaseKey = config.anonKey) {
         defaultSerializer = KotlinXSerializer(MarketJson)
         if (engine != null) httpEngine = engine
-        if (withAuth) install(Auth)
+        if (withAuth) {
+            install(Auth) {
+                // Encrypted at rest (Android Keystore); passwords are never stored on the device.
+                if (sessionManager != null) this.sessionManager = sessionManager
+                codeVerifierCache = MemoryCodeVerifierCache()
+                enableLifecycleCallbacks = androidLifecycle
+            }
+        }
         install(Postgrest)
         install(Storage)
         install(Realtime)
+        install(Functions)
     }
 }

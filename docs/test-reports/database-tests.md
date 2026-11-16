@@ -1,8 +1,8 @@
-# Mərhələ 2 — verilənlər bazası testləri
+# Verilənlər bazası testləri
 
 Mühit: PostgreSQL 16 + Supabase shim (`supabase/tests/00_supabase_shim.sql`). Əmr: `supabase/tests/run_local_tests.sh`.
 
-Nəticə: **135 / 135 keçdi**, 0 uğursuz. (Təhlükəsizlik yoxlamasından sonra; əvvəl 94 idi.)
+Nəticə: **156 / 156 keçdi**, 0 uğursuz (Mərhələ 3 daxil).
 
 | # | Yoxlama |
 |---|---|
@@ -113,7 +113,7 @@ Nəticə: **135 / 135 keçdi**, 0 uğursuz. (Təhlükəsizlik yoxlamasından son
 | 105 | security: no client write privilege on orders / bonus / roles / payments / audit |
 | 106 | security: stock quantity and profile identity/status columns not client-writable |
 | 107 | security: every SECURITY DEFINER function pins search_path |
-| 108 | security: only the read-only role helpers are callable through the API |
+| 108 | security: only role helpers (+ signed-in account / admin RPCs) are callable through the API |
 | 109 | security: even the service_role key cannot call the admin bootstrap |
 | 110 | admin without MFA: role is known (app asks for the code) but no admin rights |
 | 111 | admin without MFA: cannot list customers |
@@ -141,3 +141,24 @@ Nəticə: **135 / 135 keçdi**, 0 uğursuz. (Təhlükəsizlik yoxlamasından son
 | 133 | blocked customer: cannot add addresses |
 | 134 | blocked customer: cannot register for push |
 | 135 | blocked customer: profile edit has no effect |
+| 136 | registration: names are trimmed |
+| 137 | registration: address saved atomically as default delivery address |
+| 138 | registration: too-short address is ignored, account still created |
+| 139 | get_my_account: returns own role and status |
+| 140 | get_my_account: courier role |
+| 141 | get_my_account: admin role visible before MFA (for routing) |
+| 142 | get_my_account: nothing without a signed-in user |
+| 143 | get_my_account: not callable by anon |
+| 144 | courier creation: customer cannot create couriers |
+| 145 | courier creation: courier cannot create couriers |
+| 146 | courier creation: admin without MFA cannot create couriers |
+| 147 | courier creation: admin with MFA creates courier, creator recorded |
+| 148 | courier creation: courier has no customer cart / bonus card |
+| 149 | courier creation: audited with the admin as actor |
+| 150 | courier creation: cannot re-promote an existing courier |
+| 151 | courier creation: a customer with orders cannot become a courier |
+| 152 | courier creation: an admin cannot be turned into a courier |
+| 153 | blocking: customers cannot block accounts |
+| 154 | blocking: admin cannot block themselves |
+| 155 | blocking: blocked courier sees blocked status and loses courier rights |
+| 156 | blocking: audited |

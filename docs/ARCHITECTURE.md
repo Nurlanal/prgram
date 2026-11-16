@@ -75,3 +75,24 @@ Rol **heç vaxt** JWT-dən və ya istifadəçinin redaktə edə bildiyi metadata
 - `createMarketSupabaseClient()` — Auth, Postgrest, Storage, Realtime; OkHttp engine.
 - `StoreSettingsRepository` — `app_settings` + Realtime: admin brend rəngini/adı dəyişəndə tətbiq dərhal yenilənir.
 - Kontrakt testləri: DTO-lar real bazadan ixrac olunmuş JSON ilə yoxlanılır (`app/src/test/resources/fixtures`).
+
+## Autentifikasiya (Mərhələ 3)
+
+```
+Supabase Auth sessionStatus ─┐
+AuthFlowState (recovery) ────┼─► SupabaseSessionRepository ─► SessionState ─► MarketNavHost (startDestination)
+get_my_account() (rol, aktiv)┘
+```
+
+| SessionState | Ekran |
+|---|---|
+| SignedOut | Xoş gəlmisiniz → Giriş / Qeydiyyat / Şifrə bərpası |
+| SignedIn(CUSTOMER / COURIER / ADMIN) | müvafiq shell |
+| AdminMfaRequired | TOTP qoşulma (QR) və ya kod |
+| PasswordRecovery | yeni şifrə (admin üçün MFA-dan sonra) |
+| Blocked | hesab bloklanıb |
+| AccountUnavailable | offline başlanğıc → yenidən cəhd |
+
+- Sessiya dəyişəndə NavHost yenidən yaradılır (`sessionKey`) — bir rolun ekran tarixçəsi digərinə keçmir.
+- Tokenlər `EncryptedSessionManager` (Keystore AES-GCM) ilə saxlanılır; şifrələr heç vaxt cihazda saxlanılmır.
+- Kuryer yaratma: app → Edge Function `admin-create-courier` (service_role serverdə) → `admin_make_courier()`.

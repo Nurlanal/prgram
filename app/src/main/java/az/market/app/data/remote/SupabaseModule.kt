@@ -1,6 +1,11 @@
 package az.market.app.data.remote
 
+import android.content.Context
 import az.market.app.BuildConfig
+import az.market.app.data.auth.EncryptedSessionManager
+import az.market.app.data.auth.KeystoreSessionCipher
+import az.market.app.data.auth.SharedPrefsBlobStore
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -26,6 +31,13 @@ object SupabaseModule {
 
     @Provides
     @Singleton
-    fun provideSupabaseProvider(config: BackendConfig): SupabaseProvider =
-        SupabaseProvider(config) { createMarketSupabaseClient(it) }
+    fun provideSupabaseProvider(
+        config: BackendConfig,
+        @ApplicationContext context: Context,
+    ): SupabaseProvider = SupabaseProvider(config) {
+        createMarketSupabaseClient(
+            it,
+            sessionManager = EncryptedSessionManager(SharedPrefsBlobStore(context), KeystoreSessionCipher()),
+        )
+    }
 }

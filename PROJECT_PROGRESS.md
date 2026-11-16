@@ -7,9 +7,9 @@
 | # | Mərhələ | Status |
 |---|---|---|
 | 1 | Layihənin təməli | ✅ Tamamlandı, təsdiqləndi |
-| 2 | Backend və məlumat bazası (Supabase) | ✅ Kod + təhlükəsizlik yoxlaması tamamlandı (təsdiq gözlənilir); canlı Supabase bağlantısı açarlar gələndə |
-| 3 | Qeydiyyat və giriş | ⏳ Növbəti |
-| 4 | Müştəri ana səhifəsi | — |
+| 2 | Backend və məlumat bazası (Supabase) | ✅ Təsdiqləndi; canlı Supabase bağlantısı açarlar gələndə |
+| 3 | Qeydiyyat və giriş | ✅ Kod tamamlandı (təsdiq gözlənilir); canlı SMS/Auth yoxlaması açarlar + SMS provayderi gələndə |
+| 4 | Müştəri ana səhifəsi | ⏳ Növbəti |
 | 5 | Məhsul və kateqoriyalar | — |
 | 6 | Səbət | — |
 | 7 | Sifariş sistemi | — |
@@ -22,7 +22,7 @@
 | 14 | Təhlükəsizlik və tam test | — |
 | 15 | APK build (imzalı release) | — |
 
-**Cari mərhələ:** 2 tamamlandı, təhlükəsizlik yoxlaması aparıldı → Mərhələ 3 üçün istifadəçi təsdiqi gözlənilir.
+**Cari mərhələ:** 3 tamamlandı → Mərhələ 4 üçün istifadəçi təsdiqi gözlənilir.
 
 ## Mərhələ 1 — nə edildi
 
@@ -34,6 +34,16 @@
 - Splash screen (core-splashscreen), adaptiv tətbiq ikonu (orijinal səbət loqosu), Azərbaycan dilində interfeys.
 - Release: R8 minify + resource shrink; backup söndürülüb (sessiya tokenləri köçürülməsin).
 - Debug-only "rol interfeyslərinə baxış" düymələri (release-də yoxdur).
+
+## Mərhələ 3 — nə edildi
+
+- **Müştəri qeydiyyatı:** ad, soyad, telefon, şifrə, kənd/şəhər, ünvan → Supabase `signUp` (telefon) → SMS kodu → təsdiq. Ünvan DB trigger-i ilə hesabla eyni tranzaksiyada saxlanılır. Kodu yenidən göndərmə (60 san. sayğac), nömrəni dəyişmə.
+- **Giriş:** müştəri və kuryer telefon + şifrə; admin email + şifrə + **TOTP MFA** (ilk girişdə QR ilə qoşulma). Admin formasından admin olmayan hesab daxil ola bilmir.
+- **Şifrə bərpası:** telefon (SMS kodu) və ya admin email (email kodu) → "yeni şifrə" ekranı (sessiya vəziyyəti `PasswordRecovery`); hesabın olub-olmadığı açıqlanmır; bərpa kodu ilə yeni hesab yaranmır.
+- **Rol əsaslı yönləndirmə:** `get_my_account()` (rol yalnız serverdən) → Müştəri / Admin (MFA-dan sonra) / Kuryer; bloklanmış hesab, offline başlanğıc (yenidən cəhd) ekranları; hər shell-də "Çıxış".
+- **Kuryer hesabı:** admin paneli → Kuryerlər → forma → Edge Function `admin-create-courier` (service_role yalnız serverdə) → `admin_make_courier()` (MFA-lı admin, audit). Xəta olsa auth istifadəçisi geri silinir.
+- **Sessiya təhlükəsizliyi:** tokenlər Android Keystore AES-256-GCM ilə şifrələnir; şifrə cihazda saxlanılmır; supabase-kt-nin şifrələnməmiş default settings faylı ləğv edildi (PKCE yaddaşda).
+- Migration `20261116000008_auth_functions.sql`: qeydiyyat ünvanı, `get_my_account`, `admin_make_courier`, `admin_set_user_active`.
 
 ## Mərhələ 2 — nə edildi
 
@@ -67,6 +77,14 @@ Hesabat: `docs/test-reports/stage2-security-review.md`.
 - `app/src/test/**` (Money, UserRole, StartDestination, RootViewModel, Robolectric UI testləri)
 - `README.md`, `docs/ARCHITECTURE.md`, `docs/screenshots/*`
 
+## Test nəticələri (Mərhələ 3)
+
+- Verilənlər bazası: **156/156** (21 yeni: qeydiyyat ünvanı, get_my_account, kuryer yaratma icazələri — müştəri/kuryer/MFA-sız admin rədd edilir, bloklama).
+- Edge Function: **8/8** (Node test runner; MFA-sız admin rədd, telefon artıq var → 409, uğursuz rol → istifadəçi silinir, şifrə cavabda yoxdur).
+- Android: **82/82** — yeni: sessiya vəziyyətləri (12), şifrələnmiş sessiya (3), ViewModel-lər (18), real supabase-kt ilə HTTP səviyyəli Auth/Functions testləri (12), ekran UI testləri (6), telefon/şifrə validasiyası.
+- debug + release build, lint 0 xəta, APK skaneri: server sirri yoxdur.
+- **Yoxlanılmayıb:** real SMS göndərilməsi, real Supabase Auth, Edge Function-un Supabase-də işləməsi, cihazda Keystore (Robolectric-də proqram açarı ilə test olunub).
+
 ## Test nəticələri (Mərhələ 2)
 
 - Verilənlər bazası: 135/135 yoxlama (təhlükəsizlik yoxlamasından sonra; `supabase/tests/run_local_tests.sh`, PostgreSQL 16 + Supabase shim).
@@ -86,8 +104,7 @@ Hesabat: `docs/test-reports/stage2-security-review.md`.
 - Sxem, RLS, Storage, Realtime kodu hazırdır və lokal PostgreSQL-də test olunub.
 - Real Supabase layihəsi hələ yoxdur → istifadəçi `docs/BACKEND_SETUP.md` üzrə yaradıb URL + anon key verməlidir.
 - Klient yazma yolu olmayan cədvəllər (orders, bonus, rollar, stok sayı) üçün server funksiyaları sonrakı mərhələlərdə: rol/kuryer (3, 10), sifariş+stok (7), bonus (11), stok idarəsi (9).
-- Qeyd: supabase-kt sessiyanı standart SharedPreferences-də saxlayır; Mərhələ 3-də şifrələnmiş saxlama ilə əvəz olunacaq.
-- Admin MFA məcburidir: Mərhələ 3-də admin üçün TOTP qoşulma + kod daxiletmə ekranı lazımdır; o vaxta qədər admin əməliyyatları mümkün deyil.
+- Admin MFA ekranı hazırdır (Mərhələ 3).
 - Real layihədə Auth parametrləri (`docs/BACKEND_SETUP.md` §4: min. parol uzunluğu, MFA TOTP, anonim girişin söndürülməsi) əl ilə qurulmalıdır.
 
 ## Açıq qalan məsələlər / istifadəçidən lazım olanlar
@@ -99,7 +116,14 @@ Hesabat: `docs/test-reports/stage2-security-review.md`.
 5. **Xəritə (Mərhələ 8/10):** Google Maps API key (və ya OpenStreetMap seçimi).
 6. Debug APK ölçüsü (~63 MB) material-icons-extended səbəbindəndir; release-də R8 ilə ~2 MB.
 
+## Mərhələ 3 üçün xarici konfiqurasiya (hələ edilməyib)
+
+- Supabase layihəsi + URL/anon key → `local.properties`.
+- SMS provayderi (Phone provider) — qeydiyyat və SMS ilə şifrə bərpası üçün.
+- Magic Link email şablonuna `{{ .Token }}` — admin şifrə bərpası üçün.
+- MFA TOTP aktiv; `supabase functions deploy admin-create-courier`.
+
 ## Növbəti iş
 
 1. İstifadəçi Supabase URL + anon key verəndə: migration-ları tətbiq etmək, canlı bağlantı testi.
-2. Mərhələ 3 — Qeydiyyat və giriş (telefon + şifrə, SMS təsdiqi, admin email girişi + MFA, kuryer hesabı, şifrə bərpası, şifrələnmiş sessiya).
+2. Mərhələ 4 — Müştəri ana səhifəsi (bannerlər, kateqoriyalar, endirimli/yeni/populyar məhsullar, axtarış, bonus balansı).

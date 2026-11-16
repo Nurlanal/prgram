@@ -32,9 +32,115 @@
     <string name="stage_badge">Mərhələ %1$d</string>
     <string name="placeholder_body">Bu bölmə hələ hazır deyil və %1$d-ci mərhələdə real backend ilə qurulacaq.</string>
 
-    <!-- Auth -->
+    <!-- Auth: common -->
     <string name="login_title">Giriş</string>
-    <string name="login_placeholder_desc">Müştəri (telefon + şifrə), admin (email + şifrə) və kuryer girişi Supabase Auth ilə qurulacaq.</string>
+    <string name="register_title">Qeydiyyat</string>
+    <string name="field_first_name">Ad</string>
+    <string name="field_last_name">Soyad</string>
+    <string name="field_phone">Telefon nömrəsi</string>
+    <string name="field_phone_hint">050 123 45 67</string>
+    <string name="field_password">Şifrə</string>
+    <string name="field_password_confirm">Şifrəni təkrarlayın</string>
+    <string name="field_new_password">Yeni şifrə</string>
+    <string name="field_email">Email</string>
+    <string name="field_address">Ünvan (küçə, ev, mənzil)</string>
+    <string name="field_settlement">Kənd / şəhər</string>
+    <string name="field_code">SMS kodu</string>
+    <string name="field_email_code">Email kodu</string>
+    <string name="field_mfa_code">Autentifikator kodu</string>
+    <string name="field_vehicle">Nəqliyyat (istəyə görə)</string>
+    <string name="password_hint">Ən azı 8 simvol, hərf və rəqəm</string>
+    <string name="show_password">Şifrəni göstər</string>
+    <string name="hide_password">Şifrəni gizlət</string>
+    <string name="action_continue">Davam et</string>
+    <string name="action_confirm">Təsdiqlə</string>
+    <string name="action_save">Yadda saxla</string>
+    <string name="action_sign_out">Çıxış</string>
+    <string name="action_cancel">Ləğv et</string>
+    <string name="action_resend_code">Kodu yenidən göndər</string>
+    <string name="resend_in">Kodu yenidən göndərmək mümkün olacaq: %1$d:%2$02d</string>
+    <string name="code_resent">Kod yenidən göndərildi</string>
+
+    <!-- Login -->
+    <string name="login_tab_phone">Müştəri / Kuryer</string>
+    <string name="login_tab_admin">Admin</string>
+    <string name="login_subtitle_phone">Telefon nömrəniz və şifrənizlə daxil olun</string>
+    <string name="login_subtitle_admin">Admin girişi: email, şifrə və autentifikator kodu</string>
+    <string name="forgot_password">Şifrəni unutdum</string>
+    <string name="no_account">Hesabınız yoxdur?</string>
+    <string name="courier_login_note">Kuryer hesabları yalnız market tərəfindən yaradılır.</string>
+
+    <!-- Register -->
+    <string name="register_subtitle">Hesab yaradın və ilk sifarişdən bonus qazanın</string>
+    <string name="register_code_title">Nömrəni təsdiqləyin</string>
+    <string name="register_code_sent">%1$s nömrəsinə 6 rəqəmli kod göndərildi.</string>
+    <string name="change_number">Nömrəni dəyiş</string>
+    <string name="have_account">Artıq hesabınız var?</string>
+
+    <!-- Password recovery -->
+    <string name="forgot_title">Şifrənin bərpası</string>
+    <string name="forgot_subtitle_phone">Nömrənizi daxil edin — SMS ilə təsdiq kodu göndərəcəyik.</string>
+    <string name="forgot_subtitle_email">Admin email ünvanınızı daxil edin — email ilə təsdiq kodu göndərəcəyik.</string>
+    <string name="forgot_code_sent_generic">Bu məlumatla hesab varsa, 6 rəqəmli kod göndərildi.</string>
+    <string name="action_send_code">Kodu göndər</string>
+    <string name="new_password_title">Yeni şifrə təyin edin</string>
+    <string name="new_password_subtitle">Hesabınızın təhlükəsizliyi üçün yeni şifrə seçin.</string>
+
+    <!-- Admin MFA -->
+    <string name="mfa_title">İki faktorlu təsdiq</string>
+    <string name="mfa_verify_subtitle">Autentifikator tətbiqindəki 6 rəqəmli kodu daxil edin.</string>
+    <string name="mfa_enroll_subtitle">Admin hesabı üçün autentifikator tətbiqi (Google Authenticator, Microsoft Authenticator və s.) mütləqdir.</string>
+    <string name="mfa_enroll_step1">1. Tətbiqdə QR kodu skan edin və ya açarı əl ilə daxil edin:</string>
+    <string name="mfa_enroll_step2">2. Tətbiqin göstərdiyi kodu daxil edin:</string>
+    <string name="mfa_open_app">Autentifikator tətbiqində aç</string>
+    <string name="mfa_secret_label">Açar</string>
+    <string name="mfa_copy_secret">Açarı kopyala</string>
+    <string name="mfa_secret_copied">Açar kopyalandı</string>
+    <string name="mfa_start_enroll">QR kodu yarat</string>
+
+    <!-- Session status screens -->
+    <string name="blocked_title">Hesab bloklanıb</string>
+    <string name="blocked_body">Hesabınız market tərəfindən deaktiv edilib. Ətraflı məlumat üçün market ilə əlaqə saxlayın.</string>
+    <string name="unavailable_title">Hesab yüklənmədi</string>
+    <string name="unavailable_body">Serverə qoşulmaq mümkün olmadı. İnternet bağlantısını yoxlayıb yenidən cəhd edin.</string>
+
+    <!-- Admin: courier creation -->
+    <string name="courier_create_title">Yeni kuryer</string>
+    <string name="courier_create_subtitle">Kuryer bu telefon nömrəsi və şifrə ilə daxil olacaq. Şifrəni kuryerə şəxsən verin.</string>
+    <string name="courier_create_action">Kuryer hesabı yarat</string>
+    <string name="courier_created">Kuryer hesabı yaradıldı: %1$s</string>
+    <string name="err_courier_phone_exists">Bu nömrə ilə artıq hesab var.</string>
+    <string name="err_courier_admin_mfa">Bu əməliyyat üçün admin MFA ilə daxil olmalıdır.</string>
+    <string name="err_courier_invalid">Məlumatları yoxlayın (ad, nömrə, şifrə).</string>
+
+    <!-- Validation -->
+    <string name="v_name_required">Bu sahəni doldurun</string>
+    <string name="v_phone_invalid">Düzgün mobil nömrə daxil edin (məs. 050 123 45 67)</string>
+    <string name="v_password_short">Şifrə ən azı 8 simvol olmalıdır</string>
+    <string name="v_password_long">Şifrə çox uzundur</string>
+    <string name="v_password_letter">Şifrədə ən azı bir hərf olmalıdır</string>
+    <string name="v_password_digit">Şifrədə ən azı bir rəqəm olmalıdır</string>
+    <string name="v_password_mismatch">Şifrələr eyni deyil</string>
+    <string name="v_address_short">Ünvanı daxil edin</string>
+    <string name="v_email_invalid">Düzgün email daxil edin</string>
+    <string name="v_otp_invalid">6 rəqəmli kodu daxil edin</string>
+
+    <!-- Auth errors -->
+    <string name="err_not_configured">Server konfiqurasiya edilməyib. Tətbiqin quraşdırılmasını yoxlayın.</string>
+    <string name="err_network">İnternet bağlantısı yoxdur və ya server cavab vermir.</string>
+    <string name="err_invalid_credentials">Məlumatlar yanlışdır. Yenidən yoxlayın.</string>
+    <string name="err_phone_exists">Bu nömrə artıq qeydiyyatdan keçib. Daxil olun və ya şifrəni bərpa edin.</string>
+    <string name="err_invalid_otp">Kod yanlışdır və ya vaxtı bitib.</string>
+    <string name="err_weak_password">Şifrə çox zəifdir. Daha güclü şifrə seçin.</string>
+    <string name="err_same_password">Yeni şifrə köhnə şifrə ilə eyni ola bilməz.</string>
+    <string name="err_rate_limited">Çox sayda cəhd. Bir az sonra yenidən yoxlayın.</string>
+    <string name="err_sms_failed">SMS göndərilə bilmədi. Bir az sonra yenidən cəhd edin.</string>
+    <string name="err_phone_not_confirmed">Nömrə təsdiqlənməyib. Qeydiyyatı SMS kodu ilə tamamlayın.</string>
+    <string name="err_account_blocked">Hesabınız bloklanıb.</string>
+    <string name="err_invalid_mfa_code">Autentifikator kodu yanlışdır.</string>
+    <string name="err_not_admin_account">Bu hesab admin hesabı deyil.</string>
+    <string name="err_permission_denied">Bu əməliyyat üçün icazəniz yoxdur.</string>
+    <string name="err_unknown">Gözlənilməz xəta baş verdi. Yenidən cəhd edin.</string>
 
     <!-- Customer tabs -->
     <string name="tab_home">Ana səhifə</string>

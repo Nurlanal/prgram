@@ -67,6 +67,26 @@ Dashboard → **Authentication** bölməsində tövsiyə olunan parametrlər:
 
 **Admin üçün 2 faktorlu giriş (MFA) mütləqdir.** Server hər admin icazəsini yoxlayanda sessiyanın `aal2` olmasını (parol + autentifikator kodu) tələb edir. Admin parolu oğurlansa belə, kodsuz heç bir admin əməliyyatı mümkün deyil. Admin ilk girişdə autentifikator tətbiqini (Google Authenticator, Microsoft Authenticator və s.) qoşacaq; bu ekran Mərhələ 3-də hazırlanır.
 
+### 4.1 Mərhələ 3 üçün Auth parametrləri
+
+| Parametr | Harada | Dəyər |
+|---|---|---|
+| Phone provider + SMS provayderi | Authentication → Providers → Phone | Twilio / Vonage / MessageBird / Textlocal hesabının açarları. **SMS provayderi olmadan qeydiyyat və SMS ilə şifrə bərpası işləməz.** |
+| Phone confirmations | Phone provider | aktiv (qeydiyyat SMS kodu ilə təsdiqlənir) |
+| SMS OTP uzunluğu / müddəti | Phone provider | 6 rəqəm, 60–300 san. |
+| Email OTP şablonu (admin şifrə bərpası) | Authentication → Email Templates → **Magic Link** | Mətnə `{{ .Token }}` əlavə edin (6 rəqəmli kod). Tətbiq link deyil, kod istifadə edir. |
+| MFA → TOTP | Authentication → Multi-Factor | **Enabled** (admin girişi üçün məcburi) |
+
+### 4.2 Kuryer yaratma funksiyası (Edge Function)
+
+Kuryer hesabını yalnız admin yaradır. Bunun üçün `service_role` açarı lazımdır, ona görə əməliyyat serverdə işləyir:
+
+```bash
+supabase functions deploy admin-create-courier
+```
+
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` Supabase tərəfindən funksiyaya avtomatik verilir — APK-ya heç nə əlavə etmək lazım deyil. Funksiya: çağıranın MFA ilə daxil olmuş admin olduğunu bazadan yoxlayır → təsdiqlənmiş telefonla auth istifadəçisi yaradır → `admin_make_courier()` ilə rolu verir (audit) → xəta olarsa istifadəçini geri silir.
+
 ## 5. İlk admin hesabı (server tərəfli, bir dəfəlik)
 
 Admin qeydiyyatı tətbiqdə açıq deyil. İlk admin belə yaradılır:
@@ -78,7 +98,9 @@ Admin qeydiyyatı tətbiqdə açıq deyil. İlk admin belə yaradılır:
    ```
    Funksiya yalnız hələ heç bir admin olmadıqda işləyir və API vasitəsilə çağırıla bilməz (anon/authenticated/service_role üçün bağlıdır).
 
-Sonrakı adminlər və kuryerlər admin paneldən yaradılacaq (Mərhələ 3 və 10).
+3. Tətbiqdə **Daxil ol → Admin** ilə email + şifrə ilə daxil olun. İlk girişdə tətbiq QR kod göstərir — autentifikator tətbiqi ilə skan edib 6 rəqəmli kodu daxil edin. Bundan sonra hər girişdə kod tələb olunur.
+
+Kuryerlər admin paneldən (**Kuryerlər → Yeni kuryer**) yaradılır.
 
 ## 6. Storage
 
@@ -94,4 +116,9 @@ PostgreSQL 15+ olan istənilən maşında:
 ```bash
 PGHOST=localhost PGPORT=5432 PGUSER=postgres supabase/tests/run_local_tests.sh
 ```
-Migration-ları boş bazaya tətbiq edir, 135 təhlükəsizlik/bütövlük yoxlamasını işlədir və Android kontrakt testləri üçün fixture-ları yeniləyir.
+Migration-ları boş bazaya tətbiq edir, 156 təhlükəsizlik/bütövlük yoxlamasını işlədir və Android kontrakt testləri üçün fixture-ları yeniləyir.
+
+Edge Function testləri (Node 22+):
+```bash
+node --experimental-strip-types --test supabase/functions/_tests/admin_create_courier.test.ts
+```

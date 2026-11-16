@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import az.market.app.MainActivity
 import java.io.File
 import org.junit.Rule
@@ -46,9 +47,24 @@ class AppLaunchUiTest {
         snap("01_welcome")
     }
 
-    @Test fun signInLeadsToStage3Placeholder() {
+    @Test fun signInOpensTheRealLoginScreen() {
         compose.onNodeWithText("Daxil ol").performScrollTo().performClick()
-        compose.onNodeWithTag("placeholder_stage_3").assertExists()
+        compose.onNodeWithTag("login_phone").assertExists()
+        compose.onNodeWithTag("login_password").assertExists()
+        snap("07_login")
+        // Backend is not configured in this test build → a clear error, no crash.
+        compose.onNodeWithTag("login_phone").performTextInput("050 123 45 67")
+        compose.onNodeWithTag("login_password").performTextInput("Market2026")
+        compose.onNodeWithTag("login_submit").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Server konfiqurasiya edilməyib", substring = true).assertExists()
+    }
+
+    @Test fun registerOpensTheRegistrationForm() {
+        compose.onNodeWithText("Qeydiyyatdan keç").performScrollTo().performClick()
+        compose.onNodeWithTag("reg_first_name").assertExists()
+        compose.onNodeWithTag("reg_address").assertExists()
+        snap("08_register")
     }
 
     @Test fun customerShellBottomNavigationWorks() {

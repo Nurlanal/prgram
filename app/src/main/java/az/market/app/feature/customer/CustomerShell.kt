@@ -24,6 +24,9 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.ui.platform.testTag
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -72,7 +75,7 @@ internal enum class CustomerTab(
 
 /** Customer area with the 5-item bottom navigation. Tab state is saved/restored per tab. */
 @Composable
-fun CustomerShell() {
+fun CustomerShell(onSignOut: () -> Unit = {}) {
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val current = backStack?.destination
@@ -126,7 +129,17 @@ fun CustomerShell() {
                 TabPlaceholder(Icons.Outlined.ShoppingCart, R.string.tab_cart, R.string.cart_placeholder_desc, 6)
             }
             composable<ProfileTabRoute> {
-                TabPlaceholder(Icons.Outlined.Person, R.string.tab_profile, R.string.profile_placeholder_desc, 13)
+                Column(
+                    Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    FeaturePlaceholder(Icons.Outlined.Person, stringResource(R.string.tab_profile),
+                        stringResource(R.string.profile_placeholder_desc), 13)
+                    OutlinedButton(onClick = onSignOut, modifier = Modifier.testTag("sign_out")) {
+                        Icon(Icons.AutoMirrored.Outlined.Logout, null)
+                        Text("  " + stringResource(R.string.action_sign_out))
+                    }
+                }
             }
         }
     }

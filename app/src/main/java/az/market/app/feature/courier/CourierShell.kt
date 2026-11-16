@@ -9,6 +9,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.DeliveryDining
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.ui.platform.testTag
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
@@ -29,7 +31,7 @@ import az.market.app.core.designsystem.component.FeaturePlaceholder
 /** Courier panel shell; order lists are implemented in Stage 10. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CourierShell(onExit: (() -> Unit)?) {
+fun CourierShell(onExit: (() -> Unit)?, onSignOut: (() -> Unit)? = null) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val tabs = listOf(R.string.courier_new, R.string.courier_assigned, R.string.courier_history)
     Scaffold(
@@ -40,6 +42,13 @@ fun CourierShell(onExit: (() -> Unit)?) {
                     if (onExit != null) {
                         IconButton(onClick = onExit) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
+                        }
+                    }
+                },
+                actions = {
+                    if (onSignOut != null) {
+                        IconButton(onClick = onSignOut, modifier = Modifier.testTag("sign_out")) {
+                            Icon(Icons.AutoMirrored.Outlined.Logout, stringResource(R.string.action_sign_out))
                         }
                     }
                 },
