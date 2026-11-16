@@ -22,4 +22,4 @@ supabase/.temp/
 # Build outputs
 *.apk
 *.aab
-!/release-artifacts/**/*.apk
+/release-artifacts/
