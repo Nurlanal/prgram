@@ -1,0 +1,25 @@
+# Gradle / Android Studio
+.gradle/
+build/
+/captures
+.externalNativeBuild
+.cxx
+*.iml
+.idea/
+.kotlin/
+.DS_Store
+
+# Local machine config and secrets — NEVER commit
+local.properties
+secrets.properties
+keystore.properties
+*.jks
+*.keystore
+google-services.json
+.env
+supabase/.temp/
+
+# Build outputs
+*.apk
+*.aab
+!/release-artifacts/**/*.apk

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand name is temporary: it will be replaced by the store's own brand (admin settings). -->
+    <string name="app_name">Market</string>
+    <string name="brand_tagline">Təzə məhsullar, sürətli çatdırılma</string>
+
+    <!-- Welcome -->
+    <string name="welcome_title">Xoş gəlmisiniz!</string>
+    <string name="welcome_subtitle">Sevimli marketiniz indi telefonunuzda. Sifariş verin, bonus qazanın, qapınıza çatdıraq.</string>
+    <string name="welcome_feature_delivery">Ünvana çatdırılma və ya marketdən götürmə</string>
+    <string name="welcome_feature_bonus">Hər alış-verişdə bonus</string>
+    <string name="welcome_feature_deals">Endirim və kampaniyalar</string>
+    <string name="action_sign_in">Daxil ol</string>
+    <string name="action_register">Qeydiyyatdan keç</string>
+    <string name="action_back">Geri</string>
+
+    <!-- Debug-only role preview -->
+    <string name="dev_preview_title">Developer: rol interfeyslərinə baxış</string>
+    <string name="dev_preview_note">Yalnız debug versiyada görünür. Real girişdə rol serverdən oxunur.</string>
+    <string name="role_customer">Müştəri</string>
+    <string name="role_admin">Admin</string>
+    <string name="role_courier">Kuryer</string>
+
+    <!-- Placeholders -->
+    <string name="stage_badge">Mərhələ %1$d</string>
+    <string name="placeholder_body">Bu bölmə hələ hazır deyil və %1$d-ci mərhələdə real backend ilə qurulacaq.</string>
+
+    <!-- Auth -->
+    <string name="login_title">Giriş</string>
+    <string name="login_placeholder_desc">Müştəri (telefon + şifrə), admin (email + şifrə) və kuryer girişi Supabase Auth ilə qurulacaq.</string>
+
+    <!-- Customer tabs -->
+    <string name="tab_home">Ana səhifə</string>
+    <string name="tab_categories">Kateqoriyalar</string>
+    <string name="tab_favorites">Favoritlər</string>
+    <string name="tab_cart">Səbət</string>
+    <string name="tab_profile">Profil</string>
+    <string name="search_hint">Məhsul axtar…</string>
+    <string name="home_placeholder_desc">Bannerlər, kateqoriyalar, endirimli, yeni və çox satılan məhsullar, bonus balansı.</string>
+    <string name="categories_placeholder_desc">Kateqoriya siyahısı, axtarış, filtr və barkod skaneri.</string>
+    <string name="favorites_placeholder_desc">Bəyəndiyiniz məhsullar hesabınızda saxlanılacaq.</string>
+    <string name="cart_placeholder_desc">Say dəyişmə, endirim, bonus istifadəsi, çatdırılma haqqı və serverdə yoxlanılan yekun məbləğ.</string>
+    <string name="profile_placeholder_desc">Ünvanlar, sifariş tarixçəsi, bonus kartı, bildiriş parametrləri, qaranlıq rejim.</string>
+
+    <!-- Admin -->
+    <string name="admin_title">Admin paneli</string>
+    <string name="admin_subtitle">Marketin idarəetmə mərkəzi</string>
+    <string name="admin_dashboard">Dashboard</string>
+    <string name="admin_products">Məhsullar</string>
+    <string name="admin_categories">Kateqoriyalar</string>
+    <string name="admin_orders">Sifarişlər</string>
+    <string name="admin_customers">Müştərilər</string>
+    <string name="admin_couriers">Kuryerlər</string>
+    <string name="admin_promotions">Endirim və kampaniyalar</string>
+    <string name="admin_banners">Bannerlər</string>
+    <string name="admin_bonus">Bonus parametrləri</string>
+    <string name="admin_delivery">Çatdırılma zonası</string>
+    <string name="admin_notifications">Bildiriş göndər</string>
+    <string name="admin_reports">Satış hesabatları</string>
+    <string name="admin_settings">Market parametrləri</string>
+    <string name="admin_audit">Əməliyyat tarixçəsi</string>
+
+    <!-- Courier -->
+    <string name="courier_title">Kuryer paneli</string>
+    <string name="courier_new">Yeni</string>
+    <string name="courier_assigned">Təyin edilən</string>
+    <string name="courier_history">Tarixçə</string>
+    <string name="courier_placeholder_desc">Yalnız sizə təyin edilmiş sifarişlər, müştəri ünvanı, xəritədə istiqamət və status dəyişmə.</string>
+</resources>
