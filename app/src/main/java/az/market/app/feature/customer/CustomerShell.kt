@@ -52,7 +52,12 @@ import az.market.app.R
 import az.market.app.core.designsystem.component.FeaturePlaceholder
 import az.market.app.core.designsystem.component.MarketLogo
 import az.market.app.core.designsystem.theme.Spacing
+import androidx.navigation.toRoute
+import az.market.app.data.catalog.BannerLink
 import az.market.app.navigation.CartTabRoute
+import az.market.app.navigation.ProductDetailRoute
+import az.market.app.navigation.ProductListRoute
+import az.market.app.navigation.SearchRoute
 import az.market.app.navigation.CategoriesTabRoute
 import az.market.app.navigation.FavoritesTabRoute
 import az.market.app.navigation.HomeTabRoute
@@ -118,7 +123,46 @@ fun CustomerShell(onSignOut: () -> Unit = {}) {
             startDestination = HomeTabRoute,
             modifier = Modifier.padding(padding),
         ) {
-            composable<HomeTabRoute> { HomeTabPlaceholder() }
+            composable<HomeTabRoute> {
+                val allTitle = stringResource(R.string.list_all_title)
+                val titles = HomeSectionTitles(
+                    discounts = stringResource(R.string.list_discounted_title),
+                    forYou = stringResource(R.string.home_section_for_you),
+                    best = stringResource(R.string.home_section_best),
+                    newest = stringResource(R.string.home_section_new),
+                )
+                HomeScreen(
+                    HomeActions(
+                        onSearch = { navController.navigate(SearchRoute) },
+                        onCart = { navController.switchTab(CustomerTab.CART) },
+                        onBonus = { navController.switchTab(CustomerTab.PROFILE) },
+                        onProduct = { navController.navigate(ProductDetailRoute(it.id, it.name)) },
+                        onCategory = { navController.navigate(ProductListRoute(it.name, categoryId = it.id)) },
+                        onSeeAll = { title, discounted -> navController.navigate(ProductListRoute(titles.forSection(title) ?: allTitle, discounted = discounted)) },
+                        onBanner = { banner ->
+                            when (val link = banner.link) {
+                                is BannerLink.Category -> navController.navigate(ProductListRoute(banner.title, categoryId = link.categoryId))
+                                is BannerLink.Product -> navController.navigate(ProductDetailRoute(link.productId, banner.title))
+                                is BannerLink.Promotion -> navController.navigate(ProductListRoute(banner.title, discounted = true))
+                                else -> Unit // URL banners open in Stage 12 (campaign pages)
+                            }
+                        },
+                    ),
+                )
+            }
+            composable<SearchRoute> {
+                SearchScreen(onBack = { navController.popBackStack() },
+                    onProduct = { navController.navigate(ProductDetailRoute(it.id, it.name)) })
+            }
+            composable<ProductListRoute> { entry ->
+                val route = entry.toRoute<ProductListRoute>()
+                ProductListScreen(route.title, onBack = { navController.popBackStack() },
+                    onProduct = { navController.navigate(ProductDetailRoute(it.id, it.name)) })
+            }
+            composable<ProductDetailRoute> { entry ->
+                val route = entry.toRoute<ProductDetailRoute>()
+                ProductDetailPlaceholderScreen(route.name, onBack = { navController.popBackStack() })
+            }
             composable<CategoriesTabRoute> {
                 TabPlaceholder(Icons.Outlined.Category, R.string.tab_categories, R.string.categories_placeholder_desc, 5)
             }
@@ -146,45 +190,6 @@ fun CustomerShell(onSignOut: () -> Unit = {}) {
 }
 
 @Composable
-private fun HomeTabPlaceholder() {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(Spacing.lg),
-        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
-    ) {
-        MarketLogo()
-        // Visual only: search becomes functional in Stage 5.
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Row(
-                Modifier.padding(horizontal = Spacing.lg, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                Icon(Icons.Outlined.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    stringResource(R.string.search_hint),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            }
-        }
-        FeaturePlaceholder(
-            icon = Icons.Outlined.Storefront,
-            title = stringResource(R.string.tab_home),
-            description = stringResource(R.string.home_placeholder_desc),
-            stage = 4,
-        )
-    }
-}
-
-@Composable
 private fun TabPlaceholder(icon: ImageVector, @StringRes title: Int, @StringRes desc: Int, stage: Int) {
     Column(
         Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()),
@@ -193,4 +198,20 @@ private fun TabPlaceholder(icon: ImageVector, @StringRes title: Int, @StringRes 
     ) {
         FeaturePlaceholder(icon, stringResource(title), stringResource(desc), stage)
     }
+}
+
+private data class HomeSectionTitles(val discounts: String, val forYou: String, val best: String, val newest: String) {
+    fun forSection(@StringRes title: Int): String? = when (title) {
+        R.string.home_section_discounts -> discounts
+        R.string.home_section_for_you -> forYou
+        R.string.home_section_best -> best
+        R.string.home_section_new -> newest
+        else -> null
+    }
+}
+
+private fun androidx.navigation.NavHostController.switchTab(tab: CustomerTab) = navigate(tab.route) {
+    popUpTo(graph.findStartDestination().id) { saveState = true }
+    launchSingleTop = true
+    restoreState = true
 }

@@ -29,6 +29,11 @@ import kotlinx.serialization.Serializable
 @Serializable data object CartTabRoute
 @Serializable data object ProfileTabRoute
 
+/** Customer home-tab inner destinations. */
+@Serializable data object SearchRoute
+@Serializable data class ProductListRoute(val title: String, val categoryId: Long = -1, val discounted: Boolean = false)
+@Serializable data class ProductDetailRoute(val productId: String, val name: String)
+
 /** Admin panel inner destinations. */
 @Serializable data object AdminHomeRoute
 @Serializable data object AdminCreateCourierRoute

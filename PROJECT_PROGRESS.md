@@ -8,9 +8,9 @@
 |---|---|---|
 | 1 | Layihənin təməli | ✅ Tamamlandı, təsdiqləndi |
 | 2 | Backend və məlumat bazası (Supabase) | ✅ Təsdiqləndi; canlı Supabase bağlantısı açarlar gələndə |
-| 3 | Qeydiyyat və giriş | ✅ Kod tamamlandı (təsdiq gözlənilir); canlı SMS/Auth yoxlaması açarlar + SMS provayderi gələndə |
-| 4 | Müştəri ana səhifəsi | ⏳ Növbəti |
-| 5 | Məhsul və kateqoriyalar | — |
+| 3 | Qeydiyyat və giriş | ✅ Təsdiqləndi; canlı SMS/Auth yoxlaması açarlar + SMS provayderi gələndə |
+| 4 | Müştəri ana səhifəsi | ✅ Kod tamamlandı (təsdiq gözlənilir) |
+| 5 | Məhsul və kateqoriyalar | ⏳ Növbəti |
 | 6 | Səbət | — |
 | 7 | Sifariş sistemi | — |
 | 8 | Çatdırılma | — |
@@ -22,7 +22,7 @@
 | 14 | Təhlükəsizlik və tam test | — |
 | 15 | APK build (imzalı release) | — |
 
-**Cari mərhələ:** 3 tamamlandı → Mərhələ 4 üçün istifadəçi təsdiqi gözlənilir.
+**Cari mərhələ:** 4 tamamlandı → Mərhələ 5 üçün istifadəçi təsdiqi gözlənilir.
 
 ## Mərhələ 1 — nə edildi
 
@@ -34,6 +34,18 @@
 - Splash screen (core-splashscreen), adaptiv tətbiq ikonu (orijinal səbət loqosu), Azərbaycan dilində interfeys.
 - Release: R8 minify + resource shrink; backup söndürülüb (sessiya tokenləri köçürülməsin).
 - Debug-only "rol interfeyslərinə baxış" düymələri (release-də yoxdur).
+
+## Mərhələ 4 — nə edildi
+
+- Migration `20261118000009_catalog_and_home.sql`:
+  - `effective_price()` — yekun qiymət serverdə: adi qiymət, aktiv endirim pəncərəsi, məhsul/kateqoriya kampaniyaları (faiz və ya sabit qiymət) — ən aşağısı.
+  - `catalog_products()` — axtarış (Azərbaycan hərflərinə dözümlü `az_fold`, barkod, məhsul kodu), kateqoriya, endirim filtri, sıralama, səhifələmə; RLS ilə (invoker).
+  - `home_feed()` — bannerlər, kateqoriyalar, endirimli / yeni / ən çox satılan / "sənə özəl" (müştərinin öz alışlarına görə) + bonus balansı — bir sorğuda.
+  - `product_sales_last_30_days()` — yalnız anonim cəmlər (məhsul + say).
+  - `set_default_address()` — başlıqdakı çatdırılma ünvanı.
+- Android: ana səhifə (logo, ünvan seçimi, səbət nişanı, axtarış, bonus kartı, banner karuseli, kateqoriyalar, 4 məhsul bölməsi, skeleton, xəta + təkrar, boş vəziyyət, aşağı çəkib yeniləmə), axtarış (300 ms debounce, köhnə sorğu ləğv), kateqoriya / "Hamısı" siyahısı (sıralama, səhifələmə), məhsul kartları (şəkil — Coil, endirim/yeni nişanı, köhnə/yeni qiymət, ölçü vahidi, stokda yoxdur).
+- Məhsul detalları Mərhələ 5-də: kart hazırda aydın işarələnmiş placeholder açır.
+- `supabase/seed_demo.sql` — istəyə görə demo məhsullar (migration deyil, silmə əmri daxil).
 
 ## Mərhələ 3 — nə edildi
 
@@ -76,6 +88,14 @@ Hesabat: `docs/test-reports/stage2-security-review.md`.
 - `app/src/main/res/**` (strings, themes, splash, ikon)
 - `app/src/test/**` (Money, UserRole, StartDestination, RootViewModel, Robolectric UI testləri)
 - `README.md`, `docs/ARCHITECTURE.md`, `docs/screenshots/*`
+
+## Test nəticələri (Mərhələ 4)
+
+- Verilənlər bazası: **190/190** (34 yeni: qiymət qaydaları, kampaniya pəncərələri, axtarış/folding, barkod, sıralama, limit, home_feed anon və müştəri, "sənə özəl", bonus izolyasiyası, ünvan seçimi).
+- Android: **104/104** (yeni: home_feed kontrakt testi real DB cavabı ilə, HTTP testləri, ViewModel-lər, ekran UI testləri).
+- Build, lint 0 xəta, APK skaneri təmiz.
+- Tapılan və düzəldilən xətalar: anonim istifadəçidə `home_feed` çökürdü (bonus/sifariş cədvəlinə icazə); axtarışda hərf uyğunluğu səhvi ("Şəkər" tapılmırdı).
+- **Yoxlanılmayıb:** real Supabase-dən şəkillərin yüklənməsi, real cihazda görünüş.
 
 ## Test nəticələri (Mərhələ 3)
 
@@ -126,4 +146,4 @@ Hesabat: `docs/test-reports/stage2-security-review.md`.
 ## Növbəti iş
 
 1. İstifadəçi Supabase URL + anon key verəndə: migration-ları tətbiq etmək, canlı bağlantı testi.
-2. Mərhələ 4 — Müştəri ana səhifəsi (bannerlər, kateqoriyalar, endirimli/yeni/populyar məhsullar, axtarış, bonus balansı).
+2. Mərhələ 5 — Məhsul və kateqoriyalar (məhsul detalları, şəkil qalereyası, stok, kateqoriyalar bölməsi, filtr, barkod skaneri).

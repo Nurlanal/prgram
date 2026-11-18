@@ -110,13 +110,17 @@ Migration avtomatik 3 bucket yaradır: `product-images`, `banners`, `branding` (
 
 `orders`, `order_status_history`, `notifications`, `inventory`, `app_settings` cədvəlləri `supabase_realtime` publikasiyasına əlavə olunub. Hadisələr RLS-ə tabedir — istifadəçi yalnız öz sətirlərini alır.
 
-## 8. Lokal test (istəyə görə)
+## 8. Demo məhsullar (istəyə görə)
+
+Admin paneli (Mərhələ 9) hazır olana qədər tətbiqi sınamaq üçün: SQL Editor-da `supabase/seed_demo.sql` işə salın (12 məhsul, endirimlər, banner). Silmək üçün faylın sonundakı iki `delete` əmrini işə salın. **Real marketdə istifadə etməyin.**
+
+## 9. Lokal test (istəyə görə)
 
 PostgreSQL 15+ olan istənilən maşında:
 ```bash
 PGHOST=localhost PGPORT=5432 PGUSER=postgres supabase/tests/run_local_tests.sh
 ```
-Migration-ları boş bazaya tətbiq edir, 156 təhlükəsizlik/bütövlük yoxlamasını işlədir və Android kontrakt testləri üçün fixture-ları yeniləyir.
+Migration-ları boş bazaya tətbiq edir, 190 təhlükəsizlik/bütövlük yoxlamasını işlədir və Android kontrakt testləri üçün fixture-ları yeniləyir.
 
 Edge Function testləri (Node 22+):
 ```bash

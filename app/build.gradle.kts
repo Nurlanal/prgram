@@ -126,6 +126,8 @@ dependencies {
     implementation(libs.supabase.realtime)
     implementation(libs.supabase.functions)
     implementation(libs.zxing.core)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
     implementation(libs.ktor.client.okhttp)
 
     implementation(libs.kotlinx.serialization.json)

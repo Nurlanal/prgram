@@ -331,10 +331,14 @@ select tests.expect_count($$select 1 from pg_proc where pronamespace = 'public':
                           0, 'security: every SECURITY DEFINER function pins search_path');
 select tests.expect_count($$select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace
                               and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute'))
-                              and p.proname not in ('current_app_role','is_admin','is_courier','is_customer','is_active_user')
-                              and not (p.proname in ('get_my_account','admin_make_courier','admin_set_user_active')
+                              and p.proname not in ('current_app_role','is_admin','is_courier','is_customer','is_active_user',
+                                                    'az_fold','effective_price','catalog_products','home_feed','product_sales_last_30_days')
+                              and not (p.proname in ('get_my_account','admin_make_courier','admin_set_user_active','set_default_address')
                                        and not has_function_privilege('anon', p.oid, 'execute'))$$,
-                          0, 'security: only role helpers (+ signed-in account / admin RPCs) are callable through the API');
+                          0, 'security: only the reviewed API functions are callable (signed-in-only ones closed to anon)');
+select tests.expect_count($$select 1 from pg_proc where pronamespace = 'public'::regnamespace and prosecdef
+                              and proname in ('catalog_products','home_feed','effective_price','set_default_address')$$,
+                          0, 'security: catalogue / home / address functions run with the caller''s rights (RLS applies)');
 select tests.expect_true(not has_function_privilege('service_role', 'public.bootstrap_first_admin(text)', 'execute'),
                          'security: even the service_role key cannot call the admin bootstrap');
 
@@ -498,5 +502,110 @@ select tests.as_user('00000000-0000-0000-0000-0000000000ad', 'aal2');
 select public.admin_set_user_active('00000000-0000-0000-0000-0000000000c2', true);
 reset role;
 select tests.expect_count($$select 1 from public.audit_logs where action in ('BLOCK_USER','UNBLOCK_USER')$$, 2, 'blocking: audited');
+
+-- =====================================================================
+-- STAGE 4: server-side pricing, catalogue and home feed
+-- =====================================================================
+insert into public.products (id, category_id, name, description, barcode, sku, unit, price, is_featured) values
+  ('33333333-0000-0000-0000-000000000001', 1, 'Şəkər 1kg', 'Toz şəkər', '4760000000035', 'SEK-001', 'kg', 2.00, false),
+  ('33333333-0000-0000-0000-000000000002', 1, 'Çay Azərçay 100q', 'Qara çay', '4760000000042', 'CAY-001', 'pack', 5.00, true),
+  ('33333333-0000-0000-0000-000000000003', 3, 'Su 1.5L', 'Mineral su', '4760000000059', 'SU-001', 'liter', 0.80, false),
+  ('33333333-0000-0000-0000-000000000004', 3, 'Limonad', 'Qazlı içki', '4760000000066', 'LIM-001', 'piece', 1.20, false);
+update public.inventory set quantity = 50 where product_id in ('33333333-0000-0000-0000-000000000001','33333333-0000-0000-0000-000000000002','33333333-0000-0000-0000-000000000003');
+-- product 4 stays at stock 0
+-- 20 % off the whole "Ərzaq" category, a better fixed price on tea, an expired and a future promotion on water.
+insert into public.promotions (title, category_id, discount_type, discount_value, starts_at, ends_at) values
+  ('Ərzaq həftəsi', 1, 'percent', 20, now() - interval '1 day', now() + interval '6 days');
+insert into public.promotions (title, product_id, discount_type, discount_value, starts_at, ends_at) values
+  ('Çay endirimi', '33333333-0000-0000-0000-000000000002', 'fixed_price', 3.49, now() - interval '1 hour', now() + interval '1 day'),
+  ('Köhnə kampaniya', '33333333-0000-0000-0000-000000000003', 'percent', 50, now() - interval '10 days', now() - interval '1 day'),
+  ('Gələcək kampaniya', '33333333-0000-0000-0000-000000000003', 'percent', 50, now() + interval '1 day', now() + interval '2 days');
+-- Lemonade: product-level sale whose window has not started yet.
+update public.products set sale_price = 0.99, sale_starts_at = now() + interval '1 day' where id = '33333333-0000-0000-0000-000000000004';
+insert into public.banners (title, image_url, link_type, link_value, sort_order) values
+  ('Ərzaq həftəsi -20%', 'https://example.test/b1.jpg', 'category', '1', 1),
+  ('Köhnə banner', 'https://example.test/b0.jpg', 'none', null, 0);
+update public.banners set ends_at = now() - interval '1 hour' where title = 'Köhnə banner';
+
+-- 20. Pricing ----------------------------------------------------------------
+select tests.expect_true((select public.effective_price(p) from public.products p where id = '33333333-0000-0000-0000-000000000001') = 1.60,
+                         'pricing: category percent promotion applies (2.00 → 1.60)');
+select tests.expect_true((select public.effective_price(p) from public.products p where id = '33333333-0000-0000-0000-000000000002') = 3.49,
+                         'pricing: the lowest of category promo (4.00) and product fixed price (3.49) wins');
+select tests.expect_true((select public.effective_price(p) from public.products p where id = '33333333-0000-0000-0000-000000000003') = 0.80,
+                         'pricing: expired and future promotions are ignored');
+select tests.expect_true((select public.effective_price(p) from public.products p where id = '33333333-0000-0000-0000-000000000004') = 1.20,
+                         'pricing: product sale price before its window opens is ignored');
+select tests.expect_true((select public.effective_price(p) from public.products p where id = '11111111-1111-1111-1111-111111111111') = 1.99,
+                         'pricing: open-ended product sale price applies');
+update public.promotions set is_active = false where title = 'Ərzaq həftəsi';
+select tests.expect_true((select public.effective_price(p) from public.products p where id = '33333333-0000-0000-0000-000000000001') = 2.00,
+                         'pricing: deactivating a promotion restores the regular price immediately');
+update public.promotions set is_active = true where title = 'Ərzaq həftəsi';
+
+-- 21. Catalogue (as an anonymous visitor: no user id in the request) --------------
+select tests.as_claims('{}');
+set role anon;
+select tests.expect_count($$select 1 from public.catalog_products()$$, 6, 'catalogue: all active products, inactive hidden');
+select tests.expect_true(not exists (select 1 from public.catalog_products(p_limit => 100) where name = 'Gizli məhsul'),
+                         'catalogue: inactive product never listed');
+select tests.expect_true((select discount_percent from public.catalog_products(p_search => 'şəkər')) = 20,
+                         'catalogue: discount percent computed on the server');
+select tests.expect_count($$select 1 from public.catalog_products(p_search => 'seker')$$, 1, 'search: "seker" finds "Şəkər" (Azerbaijani letters folded)');
+select tests.expect_count($$select 1 from public.catalog_products(p_search => 'CAY')$$, 1, 'search: case-insensitive, "CAY" finds "Çay"');
+select tests.expect_count($$select 1 from public.catalog_products(p_search => '4760000000059')$$, 1, 'search: exact barcode match');
+select tests.expect_count($$select 1 from public.catalog_products(p_search => 'qazli')$$, 1, 'search: matches the description too');
+select tests.expect_count($$select 1 from public.catalog_products(p_category_id => 3)$$, 2, 'catalogue: filter by category');
+select tests.expect_true((select bool_and(final_price < price) from public.catalog_products(p_only_discounted => true)),
+                         'catalogue: discounted filter returns only discounted products');
+select tests.expect_true((select array_agg(name order by ord) from (select name, row_number() over () ord from public.catalog_products(p_sort => 'price_asc')) x)
+                         = (select array_agg(name order by final_price, name) from public.catalog_products()),
+                         'catalogue: price sort uses the final (discounted) price');
+select tests.expect_true((select not in_stock from public.catalog_products(p_search => 'limonad')), 'catalogue: out-of-stock flag');
+select tests.expect_true((select name from public.catalog_products(p_sort => 'popular') limit 1) = 'Süd 1L',
+                         'catalogue: popular sort uses units sold (aggregate only)');
+select tests.expect_count($$select 1 from public.catalog_products(p_limit => 100000)$$, 6, 'catalogue: limit is capped server-side');
+select tests.expect_true((select string_agg(a, ',' order by n) from (
+                            select unnest(proargnames) a, generate_subscripts(proargnames, 1) n
+                            from pg_proc where proname = 'product_sales_last_30_days') x) = 'product_id,units',
+                         'popularity helper returns only product_id and units (no customer or order data)');
+
+-- 22. Home feed ------------------------------------------------------------------------
+select tests.expect_true((select jsonb_array_length(public.home_feed() -> 'banners')) = 1, 'home: only currently active banners');
+select tests.expect_true((select jsonb_array_length(public.home_feed() -> 'categories')) = 13, 'home: active top-level categories');
+select tests.expect_true((select public.home_feed() -> 'discounted' -> 0 ->> 'name') = 'Çay Azərçay 100q', 'home: biggest discount first');
+select tests.expect_true((select jsonb_array_length(public.home_feed() -> 'best_sellers')) = 1, 'home: best sellers only include products that sold');
+select tests.expect_true((select public.home_feed() -> 'for_you' -> 0 ->> 'name') = 'Çay Azərçay 100q', 'home: anonymous "for you" falls back to featured products');
+select tests.expect_true((select public.home_feed() -> 'bonus') = 'null'::jsonb, 'home: no bonus data for anonymous visitors');
+reset role;
+
+set role authenticated;
+select tests.as_user('00000000-0000-0000-0000-00000000000a');
+select tests.expect_true((select (public.home_feed() -> 'bonus' ->> 'card_number') ~ '^7700'), 'home: signed-in customer sees own bonus card');
+select tests.expect_true((select public.home_feed() -> 'for_you' -> 0 ->> 'category_id') = '2',
+                         'home: "for you" is based on the customer''s own purchases (milk → dairy)');
+select tests.as_user('00000000-0000-0000-0000-00000000000b');
+select tests.expect_true((select public.home_feed() -> 'bonus' ->> 'card_number')
+                         = (select card_number from public.bonus_cards where customer_id = auth.uid()),
+                         'home: each customer sees only their own bonus card');
+reset role;
+
+-- 23. Default address --------------------------------------------------------------------
+insert into public.delivery_addresses (id, customer_id, label, address_line, settlement)
+values ('44444444-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', 'İş', 'Bakı küç. 5', 'Qəbələ');
+set role authenticated;
+select tests.as_user('00000000-0000-0000-0000-00000000000a');
+select public.set_default_address('44444444-0000-0000-0000-000000000001');
+select tests.expect_count($$select 1 from public.delivery_addresses where is_default$$, 1, 'address: exactly one default address');
+select tests.expect_true((select default_address_id from public.customers) = '44444444-0000-0000-0000-000000000001',
+                         'address: customer default updated');
+select tests.as_user('00000000-0000-0000-0000-00000000000b');
+select tests.expect_error($$select public.set_default_address('44444444-0000-0000-0000-000000000001')$$, 'P0002',
+                          'address: cannot select another customer''s address');
+reset role;
+set role anon;
+select tests.expect_error($$select public.set_default_address('44444444-0000-0000-0000-000000000001')$$, '42501',
+                          'address: anon cannot call set_default_address');
+reset role;
 
 select 'ALL CHECKS PASSED' as result;

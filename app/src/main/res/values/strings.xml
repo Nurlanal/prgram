@@ -149,11 +149,51 @@
     <string name="tab_cart">Səbət</string>
     <string name="tab_profile">Profil</string>
     <string name="search_hint">Məhsul axtar…</string>
-    <string name="home_placeholder_desc">Bannerlər, kateqoriyalar, endirimli, yeni və çox satılan məhsullar, bonus balansı.</string>
     <string name="categories_placeholder_desc">Kateqoriya siyahısı, axtarış, filtr və barkod skaneri.</string>
     <string name="favorites_placeholder_desc">Bəyəndiyiniz məhsullar hesabınızda saxlanılacaq.</string>
     <string name="cart_placeholder_desc">Say dəyişmə, endirim, bonus istifadəsi, çatdırılma haqqı və serverdə yoxlanılan yekun məbləğ.</string>
     <string name="profile_placeholder_desc">Ünvanlar, sifariş tarixçəsi, bonus kartı, bildiriş parametrləri, qaranlıq rejim.</string>
+
+    <!-- Catalogue / home (Stage 4) -->
+    <string name="unit_piece">əd.</string>
+    <string name="unit_kg">kq</string>
+    <string name="unit_gram">q</string>
+    <string name="unit_liter">l</string>
+    <string name="unit_ml">ml</string>
+    <string name="unit_pack">paket</string>
+    <string name="unit_box">qutu</string>
+    <string name="price_per_unit">/ %1$s</string>
+    <string name="badge_new">Yeni</string>
+    <string name="badge_discount">-%1$d%%</string>
+    <string name="out_of_stock">Stokda yoxdur</string>
+    <string name="home_deliver_to">Çatdırılma ünvanı</string>
+    <string name="home_no_address">Ünvan seçin</string>
+    <string name="home_categories">Kateqoriyalar</string>
+    <string name="home_section_discounts">Endirimlər</string>
+    <string name="home_section_for_you">Sənə özəl</string>
+    <string name="home_section_best">Ən çox satılanlar</string>
+    <string name="home_section_new">Yeni məhsullar</string>
+    <string name="see_all">Hamısı</string>
+    <string name="home_bonus_title">Bonus balansı</string>
+    <string name="home_bonus_card">Kart •••• %1$s</string>
+    <string name="home_empty_title">Məhsullar tezliklə</string>
+    <string name="home_empty_body">Market hələ məhsul əlavə etməyib. Bir az sonra yenidən baxın.</string>
+    <string name="home_error_title">Yükləmək mümkün olmadı</string>
+    <string name="cart_content_description">Səbət (məhsul sayı: %1$d)</string>
+    <string name="address_sheet_title">Çatdırılma ünvanı</string>
+    <string name="address_add_later">Yeni ünvan əlavə etmək və xəritədə seçmək Mərhələ 8-də hazırlanacaq.</string>
+    <string name="search_prompt">Məhsul adı və ya barkod yazın</string>
+    <string name="search_empty">Heç nə tapılmadı</string>
+    <string name="search_empty_hint">Başqa söz yoxlayın. Azərbaycan hərflərsiz də yaza bilərsiniz (məs. „seker“).</string>
+    <string name="sort_popular">Populyar</string>
+    <string name="sort_new">Yeni</string>
+    <string name="sort_discount">Endirim</string>
+    <string name="sort_price_asc">Ucuzdan bahaya</string>
+    <string name="sort_price_desc">Bahadan ucuza</string>
+    <string name="list_discounted_title">Endirimli məhsullar</string>
+    <string name="list_all_title">Bütün məhsullar</string>
+    <string name="product_detail_title">Məhsul</string>
+    <string name="product_detail_desc">Məhsul şəkilləri, təsvir, stok və səbətə əlavə etmə.</string>
 
     <!-- Admin -->
     <string name="admin_title">Admin paneli</string>

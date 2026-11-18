@@ -3,6 +3,7 @@ package az.market.app.ui
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -69,7 +70,9 @@ class AppLaunchUiTest {
 
     @Test fun customerShellBottomNavigationWorks() {
         compose.onNodeWithText("Müştəri").performScrollTo().performClick()
-        compose.onNodeWithTag("placeholder_stage_4").assertExists()
+        // No backend in this build: the real home screen shows a clear error with retry.
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("home_retry").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Server konfiqurasiya edilməyib", substring = true).assertExists()
         snap("02_customer_home")
         compose.onNodeWithText("Səbət").performClick()
         compose.onNodeWithTag("placeholder_stage_6").assertExists()
@@ -95,7 +98,7 @@ class AppLaunchUiTest {
     @Config(qualifiers = "+night")
     fun darkModeRenders() {
         compose.onNodeWithText("Müştəri").performScrollTo().performClick()
-        compose.onNodeWithTag("placeholder_stage_4").assertExists()
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("home_retry").fetchSemanticsNodes().isNotEmpty() }
         snap("06_customer_home_dark")
     }
 }

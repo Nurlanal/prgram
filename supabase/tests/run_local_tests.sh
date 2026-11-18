@@ -20,4 +20,8 @@ FIX=../app/src/test/resources/fixtures
 mkdir -p "$FIX"
 "${PSQL[@]}" -d "$DB" -tA -c "select row_to_json(s) from public.app_settings s" > "$FIX/app_settings.json"
 "${PSQL[@]}" -d "$DB" -tA -c "select coalesce(json_agg(c order by sort_order), '[]') from public.categories c" > "$FIX/categories.json"
+# Customer A's home feed, exactly as the API returns it to that signed-in customer.
+"${PSQL[@]}" -d "$DB" -tA -c "set role authenticated" \
+  -c "select set_config('request.jwt.claims', '{\"sub\":\"00000000-0000-0000-0000-00000000000a\",\"role\":\"authenticated\"}', false)" \
+  -c "select public.home_feed()" | tail -n 1 > "$FIX/home_feed.json"
 echo "ALL DATABASE TESTS PASSED"

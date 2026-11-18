@@ -1,8 +1,8 @@
 # Verilənlər bazası testləri
 
-Mühit: PostgreSQL 16 + Supabase shim (`supabase/tests/00_supabase_shim.sql`). Əmr: `supabase/tests/run_local_tests.sh`.
+Mühit: PostgreSQL 16 + Supabase shim. Əmr: `supabase/tests/run_local_tests.sh`.
 
-Nəticə: **156 / 156 keçdi**, 0 uğursuz (Mərhələ 3 daxil).
+Nəticə: **190 / 190 keçdi**, 0 uğursuz (Mərhələ 4 daxil).
 
 | # | Yoxlama |
 |---|---|
@@ -113,52 +113,86 @@ Nəticə: **156 / 156 keçdi**, 0 uğursuz (Mərhələ 3 daxil).
 | 105 | security: no client write privilege on orders / bonus / roles / payments / audit |
 | 106 | security: stock quantity and profile identity/status columns not client-writable |
 | 107 | security: every SECURITY DEFINER function pins search_path |
-| 108 | security: only role helpers (+ signed-in account / admin RPCs) are callable through the API |
-| 109 | security: even the service_role key cannot call the admin bootstrap |
-| 110 | admin without MFA: role is known (app asks for the code) but no admin rights |
-| 111 | admin without MFA: cannot list customers |
-| 112 | admin without MFA: cannot read the audit log |
-| 113 | admin without MFA: cannot read purchase prices |
-| 114 | admin without MFA: cannot change the catalogue |
-| 115 | admin without MFA: cannot upload files |
-| 116 | admin without MFA: settings update has no effect |
-| 117 | customer with forged admin claims + MFA is still a customer |
-| 118 | forged claims: still sees only own profile |
-| 119 | unknown user id gets no role |
-| 120 | unknown user id sees no personal data |
-| 121 | request without user id sees no roles |
-| 122 | changing auth user metadata cannot change the role |
-| 123 | courier with MFA is not an admin |
-| 124 | courier: cannot read the audit log |
-| 125 | courier: cannot read purchase prices |
-| 126 | courier: sees only own role |
-| 127 | courier: cannot create products |
-| 128 | phone comes from verified auth phone, not from metadata |
-| 129 | email sign-up cannot set an unverified phone number |
-| 130 | the real owner of the phone can still register |
-| 131 | blocked customer: can still see own order history |
-| 132 | blocked customer: cannot add to cart |
-| 133 | blocked customer: cannot add addresses |
-| 134 | blocked customer: cannot register for push |
-| 135 | blocked customer: profile edit has no effect |
-| 136 | registration: names are trimmed |
-| 137 | registration: address saved atomically as default delivery address |
-| 138 | registration: too-short address is ignored, account still created |
-| 139 | get_my_account: returns own role and status |
-| 140 | get_my_account: courier role |
-| 141 | get_my_account: admin role visible before MFA (for routing) |
-| 142 | get_my_account: nothing without a signed-in user |
-| 143 | get_my_account: not callable by anon |
-| 144 | courier creation: customer cannot create couriers |
-| 145 | courier creation: courier cannot create couriers |
-| 146 | courier creation: admin without MFA cannot create couriers |
-| 147 | courier creation: admin with MFA creates courier, creator recorded |
-| 148 | courier creation: courier has no customer cart / bonus card |
-| 149 | courier creation: audited with the admin as actor |
-| 150 | courier creation: cannot re-promote an existing courier |
-| 151 | courier creation: a customer with orders cannot become a courier |
-| 152 | courier creation: an admin cannot be turned into a courier |
-| 153 | blocking: customers cannot block accounts |
-| 154 | blocking: admin cannot block themselves |
-| 155 | blocking: blocked courier sees blocked status and loses courier rights |
-| 156 | blocking: audited |
+| 108 | security: only the reviewed API functions are callable (signed-in-only ones closed to anon) |
+| 109 | security: catalogue / home / address functions run with the caller's rights (RLS applies) |
+| 110 | security: even the service_role key cannot call the admin bootstrap |
+| 111 | admin without MFA: role is known (app asks for the code) but no admin rights |
+| 112 | admin without MFA: cannot list customers |
+| 113 | admin without MFA: cannot read the audit log |
+| 114 | admin without MFA: cannot read purchase prices |
+| 115 | admin without MFA: cannot change the catalogue |
+| 116 | admin without MFA: cannot upload files |
+| 117 | admin without MFA: settings update has no effect |
+| 118 | customer with forged admin claims + MFA is still a customer |
+| 119 | forged claims: still sees only own profile |
+| 120 | unknown user id gets no role |
+| 121 | unknown user id sees no personal data |
+| 122 | request without user id sees no roles |
+| 123 | changing auth user metadata cannot change the role |
+| 124 | courier with MFA is not an admin |
+| 125 | courier: cannot read the audit log |
+| 126 | courier: cannot read purchase prices |
+| 127 | courier: sees only own role |
+| 128 | courier: cannot create products |
+| 129 | phone comes from verified auth phone, not from metadata |
+| 130 | email sign-up cannot set an unverified phone number |
+| 131 | the real owner of the phone can still register |
+| 132 | blocked customer: can still see own order history |
+| 133 | blocked customer: cannot add to cart |
+| 134 | blocked customer: cannot add addresses |
+| 135 | blocked customer: cannot register for push |
+| 136 | blocked customer: profile edit has no effect |
+| 137 | registration: names are trimmed |
+| 138 | registration: address saved atomically as default delivery address |
+| 139 | registration: too-short address is ignored, account still created |
+| 140 | get_my_account: returns own role and status |
+| 141 | get_my_account: courier role |
+| 142 | get_my_account: admin role visible before MFA (for routing) |
+| 143 | get_my_account: nothing without a signed-in user |
+| 144 | get_my_account: not callable by anon |
+| 145 | courier creation: customer cannot create couriers |
+| 146 | courier creation: courier cannot create couriers |
+| 147 | courier creation: admin without MFA cannot create couriers |
+| 148 | courier creation: admin with MFA creates courier, creator recorded |
+| 149 | courier creation: courier has no customer cart / bonus card |
+| 150 | courier creation: audited with the admin as actor |
+| 151 | courier creation: cannot re-promote an existing courier |
+| 152 | courier creation: a customer with orders cannot become a courier |
+| 153 | courier creation: an admin cannot be turned into a courier |
+| 154 | blocking: customers cannot block accounts |
+| 155 | blocking: admin cannot block themselves |
+| 156 | blocking: blocked courier sees blocked status and loses courier rights |
+| 157 | blocking: audited |
+| 158 | pricing: category percent promotion applies (2.00 → 1.60) |
+| 159 | pricing: the lowest of category promo (4.00) and product fixed price (3.49) wins |
+| 160 | pricing: expired and future promotions are ignored |
+| 161 | pricing: product sale price before its window opens is ignored |
+| 162 | pricing: open-ended product sale price applies |
+| 163 | pricing: deactivating a promotion restores the regular price immediately |
+| 164 | catalogue: all active products, inactive hidden |
+| 165 | catalogue: inactive product never listed |
+| 166 | catalogue: discount percent computed on the server |
+| 167 | search: "seker" finds "Şəkər" (Azerbaijani letters folded) |
+| 168 | search: case-insensitive, "CAY" finds "Çay" |
+| 169 | search: exact barcode match |
+| 170 | search: matches the description too |
+| 171 | catalogue: filter by category |
+| 172 | catalogue: discounted filter returns only discounted products |
+| 173 | catalogue: price sort uses the final (discounted) price |
+| 174 | catalogue: out-of-stock flag |
+| 175 | catalogue: popular sort uses units sold (aggregate only) |
+| 176 | catalogue: limit is capped server-side |
+| 177 | popularity helper returns only product_id and units (no customer or order data) |
+| 178 | home: only currently active banners |
+| 179 | home: active top-level categories |
+| 180 | home: biggest discount first |
+| 181 | home: best sellers only include products that sold |
+| 182 | home: anonymous "for you" falls back to featured products |
+| 183 | home: no bonus data for anonymous visitors |
+| 184 | home: signed-in customer sees own bonus card |
+| 185 | home: "for you" is based on the customer's own purchases (milk → dairy) |
+| 186 | home: each customer sees only their own bonus card |
+| 187 | address: exactly one default address |
+| 188 | address: customer default updated |
+| 189 | address: cannot select another customer's address |
+| 190 | address: anon cannot call set_default_address |
