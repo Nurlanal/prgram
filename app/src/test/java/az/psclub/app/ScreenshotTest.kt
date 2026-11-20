@@ -38,6 +38,9 @@ class ScreenshotTest {
         File(dir, "$name.png").outputStream().use { bmp!!.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    @Test fun ps5() = render("01_ps5") { PsClubApp(store, startCat = Cat.PS5) }
+    @Test fun ps4() = render("02_ps4") { PsClubApp(store, startCat = Cat.PS4) }
+    @Test fun ps3() = render("03_ps3") { PsClubApp(store, startCat = Cat.PS3) }
     @Test fun repair() = render("06_repair") { PsClubApp(store, startCat = Cat.REPAIR) }
     @Test fun tableSheet() = render("07_table_sheet") { PsClubApp(store, startTable = store.tables[1].id) }
     @Test fun active() {
