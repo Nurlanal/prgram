@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.PSClub" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/splash_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+    <color name="splash_bg">#08080F</color>
+    <color name="ic_bg">#0B0B18</color>
+</resources>
