@@ -11,8 +11,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
 import java.util.concurrent.atomic.AtomicLong
-import kotlin.math.ceil
-import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
@@ -63,10 +61,9 @@ class Store private constructor(context: Context) {
         saveSessions()
     }
 
-    fun billedMinutes(s: Session, now: Long): Int {
-        val elapsed = ceil((now - s.startedAt) / 60000.0).toInt().coerceAtLeast(1)
-        return if (s.plannedMinutes > 0) max(s.plannedMinutes, elapsed) else max(elapsed, 15)
-    }
+    /** Billing = only the minutes actually played (whole minutes, at least 1). */
+    fun billedMinutes(s: Session, now: Long): Int =
+        ((now - s.startedAt) / 60_000L).toInt().coerceAtLeast(1)
 
     fun timeCost(s: Session, now: Long): Double = round2(billedMinutes(s, now) * s.rate / 60.0)
     fun totalCost(s: Session, now: Long): Double = round2(timeCost(s, now) + s.extrasTotal)
@@ -77,7 +74,7 @@ class Store private constructor(context: Context) {
         val mins = billedMinutes(s, now)
         val detail = buildString {
             append(t?.console?.short ?: "")
-            append(" · ").append(durationLabel(mins).let { if (mins == 0) it else it })
+            append(" · ").append(durationLabel(mins)).append(" oynanıldı")
             if (s.extrasTotal > 0) append(" · əlavələr ").append(money(s.extrasTotal))
             if (s.customer.isNotBlank()) append(" · ").append(s.customer)
         }

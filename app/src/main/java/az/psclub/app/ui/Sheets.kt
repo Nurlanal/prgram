@@ -124,12 +124,13 @@ private fun OpenTable(store: Store, table: GameTable, onDone: () -> Unit) {
         if (minutes == 0) {
             Row2("Tarif", "${money(table.pricePerHour)}/saat")
             Row2("Dəqiqəlik", money(Math.round(table.pricePerHour / 60.0 * 100) / 100.0))
-            Text("Minimum 15 dəqiqə hesablanır", color = p.dim, fontSize = 12.sp)
+            Text("Masa açıq olduğu dəqiqələr qədər hesablanır.\nMəs: 25 dəq = ${money(Math.round(table.pricePerHour * 25 / 60.0 * 100) / 100.0)}", color = p.dim, fontSize = 12.sp)
         } else {
             Row2("Müddət", durationLabel(minutes))
             Row2("Bonus xal", "+${store.pointsFor(table.pricePerHour * minutes / 60.0)} ⭐")
             HorizontalDivider(Modifier.padding(vertical = 6.dp), color = p.border)
-            Row2("Cəmi", money(Math.round(table.pricePerHour * minutes / 60.0 * 100) / 100.0), bold = true)
+            Row2("Təxmini cəmi", money(Math.round(table.pricePerHour * minutes / 60.0 * 100) / 100.0), bold = true)
+            Text("Tez bağlansa, yalnız oynanılan dəqiqələr ödənilir", color = p.dim, fontSize = 12.sp)
         }
     }
     Spacer(Modifier.height(16.dp))
@@ -169,6 +170,7 @@ private fun RunningTable(store: Store, s: Session, onClose: () -> Unit) {
         } else Text("Açıq vaxt · dəqiqəlik hesablama", color = p.dim, fontSize = 13.sp)
         if (s.customer.isNotBlank()) Text("Müştəri: ${s.customer}", color = p.dim, fontSize = 13.sp)
         HorizontalDivider(Modifier.padding(vertical = 10.dp), color = p.border)
+        Row2("Oynanılan", "${store.billedMinutes(s, now)} dəq × ${money(Math.round(s.rate / 60.0 * 10000) / 10000.0)}")
         Row2("Oyun vaxtı", money(store.timeCost(s, now)))
         if (s.extrasTotal > 0) {
             Row2("Əlavələr", money(s.extrasTotal))
