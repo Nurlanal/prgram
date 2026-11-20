@@ -81,7 +81,7 @@ fun TableSheet(store: Store, table: GameTable, onDismiss: () -> Unit) {
             Column {
                 when (st) {
                     0 -> OpenTable(store, table, onDismiss)
-                    1 -> session?.let { RunningTable(store, it) { receipt = store.closeSession(it) } }
+                    1 -> session?.let { RunningTable(store, it) { name, phone -> receipt = store.closeSession(it, debtorName = name, phone = phone) } }
                     2 -> receipt?.let { Receipt(it, onDismiss) }
                 }
             }
@@ -138,7 +138,8 @@ private fun OpenTable(store: Store, table: GameTable, onDone: () -> Unit) {
 }
 
 @Composable
-private fun RunningTable(store: Store, s: Session, onClose: () -> Unit) {
+private fun RunningTable(store: Store, s: Session, onClose: (String?, String) -> Unit) {
+    val pay = rememberPayState()
     val p = LocalPalette.current
     val now = LocalNow.current.value
     val elapsed = now - s.startedAt
@@ -185,12 +186,14 @@ private fun RunningTable(store: Store, s: Session, onClose: () -> Unit) {
         Pill("+2 saat", Modifier.weight(1f)) { store.extend(s, 120) }
     }
     Spacer(Modifier.height(14.dp))
-    BigButton("Bağla və hesabla", danger = true) { confirm = true }
+    PaymentPicker(store, pay)
+    Spacer(Modifier.height(14.dp))
+    BigButton(if (pay.credit) "Bağla · nisyəyə yaz" else "Bağla və hesabla", danger = true, enabled = pay.valid) { confirm = true }
     if (confirm) AlertDialog(
         onDismissRequest = { confirm = false },
         title = { Text("Masa bağlansın?") },
-        text = { Text("Ödəniş: ${money(store.totalCost(s, now))}") },
-        confirmButton = { TextButton({ confirm = false; onClose() }) { Text("Bağla") } },
+        text = { Text("Ödəniş: ${money(store.totalCost(s, now))} · " + if (pay.credit) "nisyə (${pay.name.trim()})" else "nağd") },
+        confirmButton = { TextButton({ confirm = false; onClose(pay.debtorName, pay.phone) }) { Text("Bağla") } },
         dismissButton = { TextButton({ confirm = false }) { Text("Ləğv et") } },
     )
 }
@@ -208,7 +211,7 @@ private fun Receipt(e: HistoryEntry, onDone: () -> Unit) {
         Text(e.title, color = p.text, fontWeight = FontWeight.Bold)
         Text(e.detail, color = p.dim, fontSize = 14.sp)
         HorizontalDivider(Modifier.padding(vertical = 10.dp), color = p.border)
-        Row2("Ödəniləcək", money(e.amount), bold = true)
+        Row2(if (e.method == "credit") "Nisyəyə yazıldı" else "Nağd ödəniləcək", money(e.amount), bold = true, color = if (e.method == "credit") p.warn else null)
     }
     Spacer(Modifier.height(14.dp))
     BigButton("Hazırdır", onClick = onDone)
@@ -272,6 +275,7 @@ fun CartSheet(store: Store, onDismiss: () -> Unit) {
     val p = LocalPalette.current
     var target by remember { mutableStateOf<Long?>(null) }
     var done by remember { mutableStateOf(false) }
+    val pay = rememberPayState()
     Sheet(onDismiss) {
         Text("Səbət", color = p.text, fontSize = 28.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(12.dp))
@@ -307,13 +311,17 @@ fun CartSheet(store: Store, onDismiss: () -> Unit) {
         Text("Ödəniş üsulu", color = p.text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth().horizontalScrollSafe(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Chip("💳 Ayrıca ödəniş", target == null) { target = null }
+            Chip("💳 İndi ödə", target == null) { target = null }
             store.sessions.forEach { s ->
                 val t = store.table(s.tableId)
                 Chip("🎮 ${t?.name ?: "Masa"}", target == s.id) { target = s.id }
             }
         }
         if (store.sessions.isNotEmpty()) Text("Aktiv masanın hesabına əlavə edə bilərsiniz", color = p.dim, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+        if (target == null) {
+            Spacer(Modifier.height(12.dp))
+            PaymentPicker(store, pay)
+        }
         Spacer(Modifier.height(16.dp))
         val total = store.cartTotal()
         NeonCard(Modifier.fillMaxWidth()) {
@@ -323,7 +331,10 @@ fun CartSheet(store: Store, onDismiss: () -> Unit) {
             Row2("Cəmi", money(total), bold = true)
         }
         Spacer(Modifier.height(16.dp))
-        BigButton(if (target == null) "Ödənişi təsdiqlə" else "Masaya əlavə et") { store.checkout(target); done = true }
+        BigButton(
+            when { target != null -> "Masaya əlavə et"; pay.credit -> "Nisyəyə yaz"; else -> "Nağd ödənişi təsdiqlə" },
+            enabled = target != null || pay.valid,
+        ) { store.checkout(target, if (target == null) pay.debtorName else null, pay.phone); done = true }
     }
 }
 

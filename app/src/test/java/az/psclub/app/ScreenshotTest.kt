@@ -41,6 +41,22 @@ class ScreenshotTest {
     @Test fun ps5() = render("01_ps5") { PsClubApp(store, startCat = Cat.PS5) }
     @Test fun ps4() = render("02_ps4") { PsClubApp(store, startCat = Cat.PS4) }
     @Test fun ps3() = render("03_ps3") { PsClubApp(store, startCat = Cat.PS3) }
+    @Test fun debt() {
+        val s = store
+        s.addDebt("Elvin Məmmədov", "050 123 45 67", 12.5, "PS5 · 2 saat")
+        s.addDebt("Murad", "", 4.0, "Pizza, Cola")
+        s.addDebt("Rauf", "055 222 33 44", 7.0, "Masa 6")
+        render("12_debt") { PsClubApp(s, startTab = Tab.DEBT) }
+    }
+    @Test fun dayReport() {
+        val s = store
+        val now = System.currentTimeMillis()
+        s.closeSession(az.psclub.app.data.Session(1, s.tables[1].id, now - 95 * 60_000L, 0, "", 6.0), now)
+        s.closeSession(az.psclub.app.data.Session(2, s.tables[5].id, now - 25 * 60_000L, 0, "", 4.0), now, debtorName = "Elvin")
+        s.addDebt("Murad", "", 4.0, "köhnə")
+        s.payDebt(s.debtorByName("Murad")!!, 4.0)
+        render("13_day") { PsClubApp(s, startTab = Tab.ADMIN) }
+    }
     @Test fun repair() = render("06_repair") { PsClubApp(store, startCat = Cat.REPAIR) }
     @Test fun tableSheet() = render("07_table_sheet") { PsClubApp(store, startTable = store.tables[1].id) }
     @Test fun active() {

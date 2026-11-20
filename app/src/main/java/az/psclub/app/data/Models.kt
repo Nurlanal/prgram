@@ -68,7 +68,36 @@ data class HistoryEntry(
     val detail: String,
     val amount: Double,
     val time: Long,
+    /** cash | credit (nisyə) | debtpay (borc ödənişi) */
+    val method: String = "cash",
 )
+
+data class Debtor(
+    val id: Long,
+    val name: String,
+    val phone: String = "",
+    val createdAt: Long,
+)
+
+/** amount > 0 = new debt, amount < 0 = payment */
+data class DebtRecord(
+    val id: Long,
+    val debtorId: Long,
+    val amount: Double,
+    val note: String,
+    val time: Long,
+)
+
+data class DayReport(
+    val cash: Double,
+    val credit: Double,
+    val debtPaid: Double,
+    val byKind: Map<String, Double>,
+    val entries: List<HistoryEntry>,
+) {
+    val sales get() = cash + credit
+    val cashInRegister get() = cash + debtPaid
+}
 
 fun money(v: Double): String =
     if (v % 1.0 == 0.0) "${v.toLong()} ₼" else String.format(Locale.US, "%.2f ₼", v)

@@ -31,6 +31,8 @@ class Store private constructor(context: Context) {
     val favorites = mutableStateListOf<String>()
     val cart = mutableStateMapOf<Long, Int>()
     val games = mutableStateMapOf<Console, String>()
+    val debtors = mutableStateListOf<Debtor>()
+    val debts = mutableStateListOf<DebtRecord>()
 
     var darkMode by mutableStateOf(true); private set
     var clubName by mutableStateOf("PS CLUB"); private set
@@ -68,7 +70,7 @@ class Store private constructor(context: Context) {
     fun timeCost(s: Session, now: Long): Double = round2(billedMinutes(s, now) * s.rate / 60.0)
     fun totalCost(s: Session, now: Long): Double = round2(timeCost(s, now) + s.extrasTotal)
 
-    fun closeSession(s: Session, now: Long = System.currentTimeMillis()): HistoryEntry {
+    fun closeSession(s: Session, now: Long = System.currentTimeMillis(), debtorName: String? = null, phone: String = ""): HistoryEntry {
         val t = table(s.tableId)
         val total = totalCost(s, now)
         val mins = billedMinutes(s, now)
@@ -78,8 +80,11 @@ class Store private constructor(context: Context) {
             if (s.extrasTotal > 0) append(" · əlavələr ").append(money(s.extrasTotal))
             if (s.customer.isNotBlank()) append(" · ").append(s.customer)
         }
-        val e = HistoryEntry(newId(), "table", t?.name ?: "Masa", detail, total, now)
+        val credit = !debtorName.isNullOrBlank()
+        val e = HistoryEntry(newId(), "table", t?.name ?: "Masa",
+            if (credit) "$detail · nisyə: ${debtorName!!.trim()}" else detail, total, now, if (credit) "credit" else "cash")
         history.add(0, e)
+        if (credit) addDebt(debtorName!!, phone, total, "${t?.name ?: "Masa"} · $detail")
         points += (total * bonusPerManat).roundToInt()
         sessions.removeAll { it.id == s.id }
         saveSessions(); saveHistory(); saveSettings()
@@ -98,7 +103,7 @@ class Store private constructor(context: Context) {
     fun pointsFor(amount: Double): Int = (amount * bonusPerManat).roundToInt()
 
     /** @param sessionId attach to an open table, or null for a separate payment */
-    fun checkout(sessionId: Long?) {
+    fun checkout(sessionId: Long?, debtorName: String? = null, phone: String = "") {
         val items = cart.entries.mapNotNull { (id, q) -> services.firstOrNull { it.id == id }?.let { it to q } }
         if (items.isEmpty()) return
         val total = round2(items.sumOf { it.first.price * it.second })
@@ -112,7 +117,10 @@ class Store private constructor(context: Context) {
             )
             saveSessions()
         } else {
-            history.add(0, HistoryEntry(newId(), "service", "Əlavə xidmətlər", note, total, System.currentTimeMillis()))
+            val credit = !debtorName.isNullOrBlank()
+            history.add(0, HistoryEntry(newId(), "service", "Əlavə xidmətlər",
+                if (credit) "$note · nisyə: ${debtorName!!.trim()}" else note, total, System.currentTimeMillis(), if (credit) "credit" else "cash"))
+            if (credit) addDebt(debtorName!!, phone, total, note)
             points += pointsFor(total)
             saveHistory(); saveSettings()
         }
@@ -141,6 +149,58 @@ class Store private constructor(context: Context) {
     }
 
     fun deleteOrder(o: RepairOrder) { orders.removeAll { it.id == o.id }; saveOrders() }
+
+    // ---------------------------------------------------------- debt book
+    fun debtOf(id: Long): Double = round2(debts.filter { it.debtorId == id }.sumOf { it.amount })
+    fun totalDebt(): Double = round2(debts.sumOf { it.amount })
+    fun debtorByName(name: String): Debtor? = debtors.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }
+    fun recordsOf(id: Long): List<DebtRecord> = debts.filter { it.debtorId == id }.sortedByDescending { it.time }
+
+    fun addDebtor(name: String, phone: String): Debtor {
+        debtorByName(name)?.let { d ->
+            if (phone.isNotBlank() && d.phone != phone.trim()) {
+                val i = debtors.indexOf(d); debtors[i] = d.copy(phone = phone.trim()); saveDebts(); return debtors[i]
+            }
+            return d
+        }
+        val d = Debtor(newId(), name.trim(), phone.trim(), System.currentTimeMillis())
+        debtors.add(d); saveDebts(); return d
+    }
+
+    /** Adds debt to the book (no sales entry — use for manual/old debts or from a credit sale). */
+    fun addDebt(name: String, phone: String, amount: Double, note: String) {
+        if (name.isBlank() || amount <= 0) return
+        val d = addDebtor(name, phone)
+        debts.add(DebtRecord(newId(), d.id, round2(amount), note.trim(), System.currentTimeMillis()))
+        saveDebts()
+    }
+
+    /** Customer pays (part of) a debt in cash. */
+    fun payDebt(d: Debtor, amount: Double) {
+        if (amount <= 0) return
+        val a = round2(minOf(amount, debtOf(d.id)).coerceAtLeast(0.0))
+        if (a <= 0) return
+        debts.add(DebtRecord(newId(), d.id, -a, "Ödəniş", System.currentTimeMillis()))
+        history.add(0, HistoryEntry(newId(), "debtpay", "Borc ödənişi", d.name, a, System.currentTimeMillis(), "debtpay"))
+        saveDebts(); saveHistory()
+    }
+
+    fun deleteDebtor(d: Debtor) {
+        debts.removeAll { it.debtorId == d.id }; debtors.removeAll { it.id == d.id }; saveDebts()
+    }
+
+    fun dayReport(dayStart: Long): DayReport {
+        val end = dayStart + 24L * 3600_000L
+        val list = history.filter { it.time in dayStart until end }
+        val sales = list.filter { it.method != "debtpay" }
+        return DayReport(
+            cash = round2(sales.filter { it.method == "cash" }.sumOf { it.amount }),
+            credit = round2(sales.filter { it.method == "credit" }.sumOf { it.amount }),
+            debtPaid = round2(list.filter { it.method == "debtpay" }.sumOf { it.amount }),
+            byKind = sales.groupBy { it.kind }.mapValues { (_, v) -> round2(v.sumOf { it.amount }) },
+            entries = list,
+        )
+    }
 
     // ---------------------------------------------------------- favorites
     fun isFav(key: String) = key in favorites
@@ -190,15 +250,15 @@ class Store private constructor(context: Context) {
     fun resetAll() {
         prefs.edit().clear().apply()
         tables.clear(); sessions.clear(); services.clear(); repairs.clear(); orders.clear()
-        history.clear(); favorites.clear(); cart.clear(); games.clear()
+        history.clear(); favorites.clear(); cart.clear(); games.clear(); debtors.clear(); debts.clear()
         darkMode = true; clubName = "PS CLUB"; address = "Bakı, Nizami küç. 12"; pin = "1234"
         points = 0; bonusPerManat = 10; orderCounter = 100
         load()
     }
 
     // ------------------------------------------------------------- stats
-    fun revenueSince(from: Long) = round2(history.filter { it.time >= from }.sumOf { it.amount })
-    fun totalRevenue() = round2(history.sumOf { it.amount })
+    fun revenueSince(from: Long) = round2(history.filter { it.time >= from && it.method != "debtpay" }.sumOf { it.amount })
+    fun totalRevenue() = round2(history.filter { it.method != "debtpay" }.sumOf { it.amount })
     fun startOfToday(): Long = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
     }.timeInMillis
@@ -247,7 +307,11 @@ class Store private constructor(context: Context) {
     }
     private fun saveHistory() = saveList("history", history.take(500)) {
         JSONObject().put("id", it.id).put("kind", it.kind).put("title", it.title).put("detail", it.detail)
-            .put("amount", it.amount).put("time", it.time)
+            .put("amount", it.amount).put("time", it.time).put("method", it.method)
+    }
+    private fun saveDebts() {
+        saveList("debtors", debtors) { JSONObject().put("id", it.id).put("name", it.name).put("phone", it.phone).put("at", it.createdAt) }
+        saveList("debts", debts) { JSONObject().put("id", it.id).put("d", it.debtorId).put("amount", it.amount).put("note", it.note).put("time", it.time) }
     }
     private fun saveCart() {
         val o = JSONObject(); cart.forEach { (k, v) -> o.put(k.toString(), v) }
@@ -294,7 +358,13 @@ class Store private constructor(context: Context) {
         } ?: emptyList())
         history.addAll(loadList("history") {
             HistoryEntry(it.getLong("id"), it.optString("kind"), it.optString("title"), it.optString("detail"),
-                it.optDouble("amount", 0.0), it.optLong("time"))
+                it.optDouble("amount", 0.0), it.optLong("time"), it.optString("method", "cash"))
+        } ?: emptyList())
+        debtors.addAll(loadList("debtors") {
+            Debtor(it.getLong("id"), it.getString("name"), it.optString("phone"), it.optLong("at"))
+        } ?: emptyList())
+        debts.addAll(loadList("debts") {
+            DebtRecord(it.getLong("id"), it.getLong("d"), it.getDouble("amount"), it.optString("note"), it.optLong("time"))
         } ?: emptyList())
         prefs.getString("favorites", null)?.let { raw ->
             runCatching { val a = JSONArray(raw); for (i in 0 until a.length()) favorites.add(a.getString(i)) }
@@ -306,7 +376,7 @@ class Store private constructor(context: Context) {
         Console.entries.forEach { c -> games[c] = g?.optString(c.name, null) ?: Defaults.games(c) }
 
         val maxId = (tables.map { it.id } + services.map { it.id } + repairs.map { it.id } +
-            sessions.map { it.id } + orders.map { it.id } + history.map { it.id }).maxOrNull() ?: 0L
+            sessions.map { it.id } + orders.map { it.id } + history.map { it.id } + debtors.map { it.id } + debts.map { it.id }).maxOrNull() ?: 0L
         if (maxId >= ids.get()) ids.set(maxId + 1)
     }
 

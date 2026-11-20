@@ -105,13 +105,20 @@ fun HistoryRow(e: HistoryEntry) {
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).then(Modifier).padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(when (e.kind) { "table" -> "🎮"; "repair" -> "🔧"; else -> "🥤" }, fontSize = 26.sp)
+        Text(when (e.kind) { "table" -> "🎮"; "repair" -> "🔧"; "debtpay" -> "💵"; else -> "🥤" }, fontSize = 26.sp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(e.title, color = p.text, fontWeight = FontWeight.SemiBold)
             Text(e.detail, color = p.dim, fontSize = 12.sp, maxLines = 2)
             Text(timeFmt.format(Date(e.time)), color = p.dim, fontSize = 11.sp)
         }
-        Text("+${money(e.amount)}", color = p.success, fontWeight = FontWeight.Bold)
+        Column(horizontalAlignment = Alignment.End) {
+            Text("+${money(e.amount)}", color = if (e.method == "credit") p.warn else p.success, fontWeight = FontWeight.Bold)
+            when (e.method) {
+                "credit" -> Badge("Nisyə", p.warn)
+                "debtpay" -> Badge("Borc ödənişi", p.accent2)
+                else -> Badge("Nağd", p.success.copy(alpha = 0.8f))
+            }
+        }
     }
 }

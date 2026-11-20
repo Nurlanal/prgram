@@ -28,7 +28,7 @@ import az.psclub.app.data.Store
 import az.psclub.app.data.money
 import kotlinx.coroutines.delay
 
-enum class Tab { MENU, ACTIVE, ADMIN }
+enum class Tab { MENU, ACTIVE, DEBT, ADMIN }
 
 @Composable
 fun PsClubApp(store: Store, startCat: Cat = Cat.PS5, startTab: Tab = Tab.MENU, startTable: Long? = null) {
@@ -65,6 +65,7 @@ fun PsClubApp(store: Store, startCat: Cat = Cat.PS5, startTab: Tab = Tab.MENU, s
                             onProfile = { showProfile = true },
                         )
                         Tab.ACTIVE -> ActiveScreen(store, onTable = { tableSheet = it })
+                        Tab.DEBT -> DebtScreen(store)
                         Tab.ADMIN -> AdminScreen(store, onBack = { tab = Tab.MENU })
                     }
                 }
@@ -130,7 +131,8 @@ private fun BottomBar(store: Store, tab: Tab, onTab: (Tab) -> Unit, onCart: () -
                         .clip(RoundedCornerShape(50)).background(if (p.dark) p.cardAlt else p.pill).padding(5.dp),
                 ) {
                     Seg("Menyu", tab == Tab.MENU) { onTab(Tab.MENU) }
-                    Seg(if (active > 0) "Aktiv · $active" else "Aktiv", tab == Tab.ACTIVE) { onTab(Tab.ACTIVE) }
+                    Seg(if (active > 0) "Aktiv·$active" else "Aktiv", tab == Tab.ACTIVE) { onTab(Tab.ACTIVE) }
+                    Seg("Borc", tab == Tab.DEBT) { onTab(Tab.DEBT) }
                 }
                 Spacer(Modifier.weight(1f))
                 val bump by animateFloatAsState(if (total > 0) 1f else 0.96f, spring(dampingRatio = 0.4f), label = "cart")
@@ -139,7 +141,7 @@ private fun BottomBar(store: Store, tab: Tab, onTab: (Tab) -> Unit, onCart: () -
                         .shadow(if (p.dark) 18.dp else 8.dp, RoundedCornerShape(50), ambientColor = p.accent, spotColor = p.accent2)
                         .clip(RoundedCornerShape(50)).background(p.glow)
                         .bounceClick(onClick = onCart)
-                        .padding(horizontal = 22.dp, vertical = 16.dp),
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Default.ShoppingCart, null, tint = Color.White, modifier = Modifier.size(22.dp))
@@ -161,12 +163,12 @@ private fun Seg(text: String, selected: Boolean, onClick: () -> Unit) {
     )
     Box(
         Modifier.clip(RoundedCornerShape(50)).background(bg).bounceClick(onClick = onClick)
-            .padding(horizontal = 22.dp, vertical = 12.dp),
+            .padding(horizontal = 15.dp, vertical = 12.dp),
     ) {
         Text(
             text,
             color = if (selected && p.dark) p.accent else p.text,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 16.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 15.sp, maxLines = 1,
         )
     }
 }

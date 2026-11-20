@@ -11,6 +11,8 @@ Offline işləyən, 3D neon dizaynlı PlayStation Club tətbiqi (Kotlin + Jetpac
 - **Əlavə xidmətlər** — joystik, VR, turnir, içki və qəlyanaltılar; səbət, ayrıca ödəniş və ya aktiv masanın hesabına əlavə.
 - **Telefon təmiri** — xidmət növləri, qiymətlər, müddət, sifariş forması, sifariş statusları.
 - **Admin panel** (PIN: `1234`, Ayarlardan dəyişin) — konsol/masa qiymətləri, masalar, xidmətlər, təmir qiymətləri, sifarişlər, gəlir hesabatı, oyun siyahıları, klub məlumatları, bonus sistemi.
+- **Borc dəftəri** — ad, borcu, ümumi borc; nisyə satış, əl ilə borc yazmaq, ödəniş qəbul etmək, tarixçə.
+- **Gün sonu hesabatı** (admin) — nağd, nisyə, borc ödənişləri, kassada olmalı məbləğ, gün-gün baxış.
 - Bonus xallar, seçilmişlər (♥), axtarış, Dark/Light mode, animasiyalar.
 - **İnternet tələb etmir** — tətbiqdə INTERNET icazəsi yoxdur; bütün məlumatlar telefonun yaddaşında saxlanılır.
 

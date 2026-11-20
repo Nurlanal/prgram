@@ -28,16 +28,19 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import az.psclub.app.data.*
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private enum class AdminTab(val title: String) {
-    TABLES("🎮 Masalar"), SERVICES("🥤 Xidmətlər"), REPAIRS("🔧 Təmir"),
+    DAY("🧾 Gün sonu"), DEBTS("📒 Borclar"), TABLES("🎮 Masalar"), SERVICES("🥤 Xidmətlər"), REPAIRS("🔧 Təmir"),
     ORDERS("📋 Sifarişlər"), REPORT("📊 Hesabat"), SETTINGS("⚙️ Ayarlar"),
 }
 
 @Composable
 fun AdminScreen(store: Store, onBack: () -> Unit) {
     val p = LocalPalette.current
-    var tab by rememberSaveable { mutableStateOf(AdminTab.TABLES) }
+    var tab by rememberSaveable { mutableStateOf(AdminTab.DAY) }
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -62,6 +65,8 @@ fun AdminScreen(store: Store, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 when (t) {
+                    AdminTab.DAY -> dayTab(store)
+                    AdminTab.DEBTS -> debtsTab(store)
                     AdminTab.TABLES -> tablesTab(store)
                     AdminTab.SERVICES -> servicesTab(store)
                     AdminTab.REPAIRS -> repairsTab(store)
@@ -429,5 +434,120 @@ private fun LazyListScope.settingsTab(store: Store) {
             "Sıfırlansın?", "Masalar, qiymətlər, sifarişlər və hesabat standart vəziyyətə qayıdacaq.",
             { ask = false },
         ) { ask = false; store.resetAll() }
+    }
+}
+
+// ----------------------------------------------------------- end of day
+private val dayFmt = SimpleDateFormat("dd MMMM yyyy, EEEE", Locale("az"))
+private const val DAY_MS = 24L * 3600_000L
+
+private fun LazyListScope.dayTab(store: Store) {
+    item(key = "day") { DayReportCard(store) }
+}
+
+@Composable
+private fun DayReportCard(store: Store) {
+    val p = LocalPalette.current
+    var offset by rememberSaveable { mutableIntStateOf(0) }
+    val today = store.startOfToday()
+    // calendar-safe: step back by days, then snap to that day's midnight
+    val dayStart = java.util.Calendar.getInstance().apply {
+        timeInMillis = today; add(java.util.Calendar.DAY_OF_YEAR, -offset)
+    }.timeInMillis
+    val r = store.dayReport(dayStart)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Pill("‹") { offset += 1 }
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(if (offset == 0) "Bu gün" else if (offset == 1) "Dünən" else "$offset gün əvvəl", color = p.text, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                Text(dayFmt.format(Date(dayStart)), color = p.dim, fontSize = 13.sp)
+            }
+            Pill("›") { if (offset > 0) offset -= 1 }
+        }
+        // big total
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(p.glow).padding(20.dp),
+        ) {
+            Text("Ümumi satış", color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp)
+            Text(money(r.sales.r2()), color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.Black)
+            Text("${r.entries.count { it.method != "debtpay" }} əməliyyat", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            InfoBox("💵 Nağd", money(r.cash), Modifier.weight(1f), p.success)
+            InfoBox("📒 Nisyə", money(r.credit), Modifier.weight(1f), p.warn)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            InfoBox("Borc ödənişi", money(r.debtPaid), Modifier.weight(1f), p.accent2)
+            InfoBox("Kassada nağd", money(r.cashInRegister.r2()), Modifier.weight(1f), p.success)
+        }
+        NeonCard(Modifier.fillMaxWidth()) {
+            Text("Hesablama", color = p.text, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Line("Nağd satış", money(r.cash))
+            Line("+ Nisyə satış", money(r.credit))
+            Line("= Ümumi satış", money(r.sales.r2()), bold = true)
+            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = p.border)
+            Line("Nağd satış", money(r.cash))
+            Line("+ Alınan borc ödənişləri", money(r.debtPaid))
+            Line("= Kassada olmalı", money(r.cashInRegister.r2()), bold = true)
+            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = p.border)
+            Line("🎮 Oyun masaları", money(r.byKind["table"] ?: 0.0))
+            Line("🥤 Xidmətlər", money(r.byKind["service"] ?: 0.0))
+            Line("🔧 Təmir", money(r.byKind["repair"] ?: 0.0))
+            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = p.border)
+            Line("Açıq qalan ümumi borc", money(store.totalDebt()), color = p.danger)
+        }
+        Label(if (r.entries.isEmpty()) "Bu gün əməliyyat yoxdur" else "Əməliyyatlar (${r.entries.size})")
+        r.entries.forEach { HistoryRow(it) }
+    }
+}
+
+@Composable
+private fun Line(label: String, value: String, bold: Boolean = false, color: Color? = null) {
+    val p = LocalPalette.current
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+        Text(label, color = if (bold) p.text else p.dim, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
+        Text(value, color = color ?: p.text, fontWeight = if (bold) FontWeight.Black else FontWeight.SemiBold)
+    }
+}
+
+private fun Double.r2() = Math.round(this * 100) / 100.0
+
+// ------------------------------------------------------------- debts
+private fun LazyListScope.debtsTab(store: Store) {
+    item {
+        val p = LocalPalette.current
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            InfoBox("Ümumi borc", money(store.totalDebt()), Modifier.weight(1f), p.danger)
+            InfoBox("Borclu", "${store.debtors.count { store.debtOf(it.id) > 0 }} nəfər", Modifier.weight(1f))
+        }
+    }
+    item {
+        val p = LocalPalette.current
+        Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp)) {
+            Text("Ad", color = p.dim, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text("Borcu", color = p.dim, fontWeight = FontWeight.SemiBold)
+        }
+    }
+    val rows = store.debtors.map { it to store.debtOf(it.id) }.filter { it.second > 0 }.sortedByDescending { it.second }
+    items(rows, key = { it.first.id }) { (d, v) ->
+        val p = LocalPalette.current
+        NeonCard(Modifier.fillMaxWidth(), radius = 20.dp) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(d.name, color = p.text, fontWeight = FontWeight.Bold)
+                    if (d.phone.isNotBlank()) Text(d.phone, color = p.dim, fontSize = 12.sp)
+                }
+                Text(money(v), color = p.danger, fontWeight = FontWeight.Black)
+            }
+        }
+    }
+    item {
+        val p = LocalPalette.current
+        Row(Modifier.fillMaxWidth().padding(6.dp)) {
+            Text("Ümumi", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
+            Text(money(store.totalDebt()), color = p.danger, fontSize = 18.sp, fontWeight = FontWeight.Black)
+        }
+        Text("Borc yazmaq / ödəniş qəbul etmək üçün aşağı paneldə “Borc” bölməsini açın.", color = p.dim, fontSize = 12.sp)
     }
 }
