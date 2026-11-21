@@ -1,0 +1,55 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Optional release signing: create android/keystore.properties with
+// storeFile, storePassword, keyAlias, keyPassword. Without it, release builds
+// are signed with the debug key so the APK is still installable for testing.
+def keystoreFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystoreFile.exists()) keystoreProps.load(new FileInputStream(keystoreFile))
+
+android {
+    namespace 'az.bakurunner.game'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'az.bakurunner.game'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreFile.exists()) {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig keystoreFile.exists() ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // keep the bundled game assets uncompressed-friendly and never strip them
+    androidResources {
+        noCompress += ['js', 'html', 'css']
+    }
+}
+
+// No dependencies: plain Android framework only (no ads, no analytics, no Firebase).
