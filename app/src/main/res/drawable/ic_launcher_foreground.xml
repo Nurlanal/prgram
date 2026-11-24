@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Alış-veriş çantası -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M34,44 L74,44 L71,78 Q70.6,82 66.6,82 L41.4,82 Q37.4,82 37,78 Z"/>
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="4" android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M44,48 L44,40 Q44,30 54,30 Q64,30 64,40 L64,48"/>
+    <!-- Manat işarəsi -->
+    <path android:strokeColor="#FF3D3AD8" android:strokeWidth="3.5" android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M45,74 L45,67 Q45,57 54,57 Q63,57 63,67 L63,74 M54,52 L54,74"/>
+</vector>
