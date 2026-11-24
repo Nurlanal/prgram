@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -97,6 +98,43 @@ fun SettingsScreen(nav: NavController) {
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
+            SectionTitle("Borc xatırlatmaları")
+            val askNotif = rememberNotificationPermission()
+            val notifOk = az.magaza.pos.notify.DebtReminders.canNotify(ctx)
+            PosCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Ödəniş günü bildiriş göndər", style = MaterialTheme.typography.titleSmall)
+                        Text("Borcun ödəniş günü gələndə və gecikdikcə hər gün bir dəfə", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(s.debtReminders, { app.settings.setDebtReminders(it); if (it) askNotif() })
+                }
+                if (s.debtReminders) {
+                    Spacer(Modifier.height(6.dp))
+                    Text("Bildiriş saatı (bu saatdan sonra)", style = MaterialTheme.typography.labelLarge)
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(8, 9, 10, 11, 12, 14, 16, 18).forEach { h ->
+                            FilterChip(s.reminderHour == h, { app.settings.setReminderHour(h) }, { Text("%02d:00".format(h)) })
+                        }
+                    }
+                    if (!notifOk) {
+                        Text("Telefonda bu proqram üçün bildirişlər bağlıdır.", color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = {
+                            askNotif()
+                            runCatching {
+                                ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, ctx.packageName)
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                        }) { Text("Bildirişlərə icazə ver") }
+                    }
+                    TextButton(onClick = { az.magaza.pos.notify.DebtReminders.checkNow(ctx); runner.message("Borclar yoxlanılır") }) {
+                        Text("İndi yoxla")
+                    }
+                }
+            }
+
             SectionTitle("Təhlükəsizlik")
             PosCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -124,7 +162,7 @@ fun SettingsScreen(nav: NavController) {
                     Text("Əməliyyat tarixçəsi", Modifier.weight(1f)); Icon(Icons.Default.ChevronRight, null)
                 }
             }
-            Text("Mağaza POS v1.1 · Tam offline işləyir, internet tələb etmir.", style = MaterialTheme.typography.bodySmall,
+            Text("Mağaza POS v1.2 · Tam offline işləyir, internet tələb etmir.", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
         }
     }

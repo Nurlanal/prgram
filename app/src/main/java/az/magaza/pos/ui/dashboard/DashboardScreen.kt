@@ -122,6 +122,10 @@ fun DashboardScreen(nav: NavController, openMenu: () -> Unit) {
     val s by vm.state.collectAsState()
     val range by vm.range.collectAsState()
     val settings by app.settings.state.collectAsState()
+    val debtTx by app.repo.dao.observeAllDebtTx().collectAsState(emptyList())
+    val dueNow = remember(debtTx) {
+        az.magaza.pos.data.DebtSchedule.openByCustomer(debtTx).values.flatten().filter { (it.daysLeft() ?: 1) <= 0 }
+    }
     val extra = LocalExtraColors.current
     val cs = MaterialTheme.colorScheme
 
@@ -136,6 +140,20 @@ fun DashboardScreen(nav: NavController, openMenu: () -> Unit) {
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (dueNow.isNotEmpty()) item {
+                Card(
+                    onClick = { nav.navigate(Routes.DEBTS) },
+                    colors = CardDefaults.cardColors(containerColor = cs.errorContainer, contentColor = cs.onErrorContainer),
+                ) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.NotificationsActive, null)
+                        Spacer(Modifier.width(12.dp))
+                        Text("Ödəniş günü çatmış borclar: ${dueNow.map { it.tx.customerId }.distinct().size} müştəri · ${dueNow.sumOf { it.remaining }.money()}",
+                            Modifier.weight(1f))
+                        Icon(Icons.Default.ChevronRight, null)
+                    }
+                }
+            }
             item { RangeSelector(range, { vm.range.value = it }) }
             item {
                 // Əsas kart: satış və qazanc

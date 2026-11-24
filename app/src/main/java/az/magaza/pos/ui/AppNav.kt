@@ -90,7 +90,11 @@ private val drawerItems = listOf(
 )
 
 @Composable
-fun PosNavRoot(nav: NavHostController = rememberNavController()) {
+fun PosNavRoot(
+    nav: NavHostController = rememberNavController(),
+    openCustomer: Long? = null,
+    onCustomerOpened: () -> Unit = {},
+) {
     val snackbar = remember { SnackbarHostState() }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -108,6 +112,14 @@ fun PosNavRoot(nav: NavHostController = rememberNavController()) {
     }
 
     val openMenu: () -> Unit = { scope.launch { drawerState.open() } }
+
+    // Borc bildirişinə toxunulduqda müştərinin səhifəsini açırıq
+    LaunchedEffect(openCustomer) {
+        if (openCustomer != null) {
+            nav.navigate(Routes.customer(openCustomer)) { launchSingleTop = true }
+            onCustomerOpened()
+        }
+    }
 
     CompositionLocalProvider(LocalSnackbar provides snackbar) {
         ModalNavigationDrawer(

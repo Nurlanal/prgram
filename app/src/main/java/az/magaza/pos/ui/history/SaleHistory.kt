@@ -126,7 +126,9 @@ fun SaleDetailScreen(nav: NavController, id: Long) {
     val receipt = rememberReceiptActions(runner)
     val sale by app.repo.dao.observeSale(id).collectAsState(null)
     val items by app.repo.dao.observeSaleItems(id).collectAsState(emptyList())
+    val debtTx by app.repo.dao.observeSaleDebtTx(id).collectAsState(null)
     var cancel by remember { mutableStateOf(false) }
+    var editDue by remember { mutableStateOf(false) }
     val extra = LocalExtraColors.current
 
     Scaffold(topBar = {
@@ -177,6 +179,13 @@ fun SaleDetailScreen(nav: NavController, id: Long) {
                     InfoRow("Nağd", s.paidCash.money())
                     InfoRow("Kart", s.paidCard.money())
                     InfoRow("Borc", s.debtAmount.money(), valueColor = if (s.debtAmount > 0) extra.warning else MaterialTheme.colorScheme.onSurface)
+                    if (s.debtAmount > 0 && !cancelled) debtTx?.let { t ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Borcun ödəniş tarixi", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            TextButton(onClick = { editDue = true }) { Text(t.dueAt?.let { Dates.date(it) } ?: "Təyin et") }
+                        }
+                    }
                     HorizontalDivider(Modifier.padding(vertical = 6.dp))
                     InfoRow("Maya dəyəri", s.costTotal.money())
                     InfoRow("Satışdan qazanc", s.profit.money(), bold = true, valueColor = if (s.profit >= 0) extra.positive else extra.negative)
@@ -193,6 +202,11 @@ fun SaleDetailScreen(nav: NavController, id: Long) {
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error))
             }
         }
+    }
+    if (editDue) debtTx?.let { t ->
+        DueDateDialog(t.dueAt, "Satış #$id borcu: ${t.amount.money()}",
+            onConfirm = { d -> runner.run(success = "Ödəniş tarixi yeniləndi") { app.repo.setDebtDueDate(t.id, d) } },
+            onDismiss = { editDue = false })
     }
     sale?.let { s ->
         if (cancel) {

@@ -179,6 +179,8 @@ data class CustomerDebtTx(
     val saleId: Long? = null,
     val method: String? = null,
     val note: String = "",
+    /** Borcun ödənilməli olduğu gün (yalnız + borc yazılışları üçün). null — tarix təyin edilməyib. */
+    val dueAt: Long? = null,
 )
 
 object SupplierTxType {

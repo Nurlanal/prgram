@@ -20,6 +20,8 @@ data class AppSettings(
     val autoBackup: Boolean = true,
     val lastBackupAt: Long = 0,
     val lastAutoBackupAt: Long = 0,
+    val debtReminders: Boolean = true,
+    val reminderHour: Int = 10,
 )
 
 class SettingsStore(context: Context) {
@@ -40,6 +42,8 @@ class SettingsStore(context: Context) {
         autoBackup = prefs.getBoolean("autoBackup", true),
         lastBackupAt = prefs.getLong("lastBackupAt", 0),
         lastAutoBackupAt = prefs.getLong("lastAutoBackupAt", 0),
+        debtReminders = prefs.getBoolean("debtReminders", true),
+        reminderHour = prefs.getInt("reminderHour", 10),
     )
 
     private fun edit(block: android.content.SharedPreferences.Editor.() -> Unit) {
@@ -57,6 +61,15 @@ class SettingsStore(context: Context) {
     fun setPrinter(address: String, name: String) = edit { putString("printerAddress", address); putString("printerName", name) }
     fun setPaperWidth(w: Int) = edit { putInt("paperWidth", w) }
     fun setAutoBackup(on: Boolean) = edit { putBoolean("autoBackup", on) }
+    fun setDebtReminders(on: Boolean) = edit { putBoolean("debtReminders", on) }
+    fun setReminderHour(h: Int) = edit { putInt("reminderHour", h.coerceIn(0, 23)) }
+
+    /** Eyni borc üçün eyni gündə yalnız bir bildiriş göndərmək üçün. */
+    fun wasReminded(key: String): Boolean = prefs.getStringSet("reminded", emptySet())!!.contains(key)
+    fun markReminded(keys: Collection<String>, today: Long) {
+        val keep = prefs.getStringSet("reminded", emptySet())!!.filter { it.substringAfter('@').toLongOrNull() == today }
+        prefs.edit().putStringSet("reminded", (keep + keys).toSet()).apply()
+    }
     fun markBackup(auto: Boolean) = edit {
         val now = System.currentTimeMillis()
         putLong("lastBackupAt", now)

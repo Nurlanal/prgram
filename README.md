@@ -10,7 +10,7 @@ Telefon, elektronika və aksesuar mağazaları üçün **tam offline** işləyə
 
 ## 1. Quraşdırma (APK)
 
-1. `apk/MagazaPOS-v1.1.0.apk` faylını telefona köçürün (USB, Telegram, WhatsApp, Google Drive və s.).
+1. `apk/MagazaPOS-v1.2.0.apk` faylını telefona köçürün (USB, Telegram, WhatsApp, Google Drive və s.).
 2. Telefonda faylı açın.
 3. "Naməlum mənbələrdən quraşdırma" soruşularsa: **Ayarlar → İcazə ver** (bu fayl üçün) seçin.
 4. **Quraşdır** düyməsini basın.
@@ -65,6 +65,19 @@ Digər qaydalar:
 - Satış ləğv edildikdə: məhsullar anbara qayıdır, kassa və borc əks yazılışla düzəlir, səbəb saxlanılır. Kassa tarixçəsindən heç nə silinmir.
 - Bütün məbləğlər qəpiklə (tam ədəd) saxlanılır — yuvarlaqlaşdırma xətası olmur.
 
+## 4.1. Borcun ödəniş tarixi və bildiriş
+
+- **Borca satışda** (ödəniş: Borc və ya Qarışıq) "Borcun ödəniş tarixi" seçilir: *1 həftə*, *2 həftə*, *1 ay* və ya təqvimdən istənilən gün.
+- **Əl ilə borc əlavə edəndə** də tarix təyin etmək olar.
+- Həmin gün (Ayarlarda seçilmiş saatdan sonra, standart 10:00) telefona **bildiriş gəlir**: "Bu gün borc ödəniş günüdür — Müştəri: 20.00 ₼". Borc ödənilməyibsə, sonrakı günlərdə **"Gecikmiş borc … N gün gecikib"** bildirişi gündə bir dəfə gəlir.
+- Bildirişə toxunduqda həmin müştərinin səhifəsi açılır.
+- Müştəri möhlət istəsə: **Müştəri → Açıq borclar → Tarixi dəyiş** (və ya Satış detalında "Borcun ödəniş tarixi").
+- Qismən ödənişlər ən köhnə borcdan başlayaraq bağlanır; borc tam ödənəndə bildiriş dayanır.
+- Ana səhifədə və Borclar bölməsində bu gün ödənilməli və gecikmiş borclar ayrıca göstərilir.
+- İnternet lazım deyil — yoxlama telefonda lokal işləyir və telefon yenidən başladılanda da davam edir.
+- **Ayarlar → Borc xatırlatmaları**: aç/söndür, bildiriş saatı, bildiriş icazəsi.
+- Android 13+ telefonlarda ilk dəfə tarix seçəndə bildiriş icazəsi soruşulur — **İcazə ver** seçin.
+
 ## 5. Backup və bərpa (çox vacib)
 
 Məlumatlar yalnız telefonda saxlanıldığı üçün **müntəzəm backup çıxarın**:
@@ -103,7 +116,7 @@ Zavod barkodu olmayan mallar (qablar, kabellər, aksesuarlar) üçün iki yol va
 Komanda sətrindən:
 
 ```bash
-./gradlew testDebugUnitTest   # testlər (16 test: biznes məntiqi + bütün ekranlar)
+./gradlew testDebugUnitTest   # testlər (21 test: biznes məntiqi + bütün ekranlar)
 ./gradlew assembleRelease     # app/build/outputs/apk/release/app-release.apk
 ```
 

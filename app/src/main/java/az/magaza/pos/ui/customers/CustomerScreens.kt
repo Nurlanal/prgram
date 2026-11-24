@@ -12,6 +12,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import az.magaza.pos.data.DebtSchedule
+import az.magaza.pos.data.OpenDebt
 import az.magaza.pos.data.PosRepository
 import az.magaza.pos.data.db.*
 import az.magaza.pos.ui.Routes
@@ -75,10 +77,18 @@ fun DebtsScreen(nav: NavController) {
     val app = app()
     val runner = rememberRunner()
     val list by app.repo.dao.observeCustomersWithDebt().collectAsState(emptyList())
+    val allTx by app.repo.dao.observeAllDebtTx().collectAsState(emptyList())
+    val openBy = remember(allTx) { DebtSchedule.openByCustomer(allTx) }
     var q by remember { mutableStateOf("") }
     var pay by remember { mutableStateOf<CustomerWithDebt?>(null) }
     var add by remember { mutableStateOf(false) }
-    val debtors = list.filter { it.debt > 0 && (q.isBlank() || it.name.contains(q, true) || it.phone.contains(q)) }.sortedByDescending { it.debt }
+    val now = System.currentTimeMillis()
+    fun nextDue(id: Long) = openBy[id]?.let { DebtSchedule.nextDue(it) }
+    // Əvvəlcə gecikmiş/bu gün olanlar, sonra yaxın tarixlilər, sonra tarixsizlər
+    val debtors = list.filter { it.debt > 0 && (q.isBlank() || it.name.contains(q, true) || it.phone.contains(q)) }
+        .sortedWith(compareBy<CustomerWithDebt> { nextDue(it.id) ?: Long.MAX_VALUE }.thenByDescending { it.debt })
+    val dueToday = openBy.values.flatten().filter { (it.daysLeft(now) ?: 1) == 0 }
+    val overdue = openBy.values.flatten().filter { (it.daysLeft(now) ?: 0) < 0 }
     val extra = LocalExtraColors.current
 
     Scaffold(
@@ -99,6 +109,20 @@ fun DebtsScreen(nav: NavController) {
                         tint = extra.positive)
                 }
             }
+            if (dueToday.isNotEmpty() || overdue.isNotEmpty()) item {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.NotificationsActive, null)
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            if (dueToday.isNotEmpty()) Text("Bu gün ödəniş günü: ${dueToday.map { it.tx.customerId }.distinct().size} müştəri · ${dueToday.sumOf { it.remaining }.money()}",
+                                style = MaterialTheme.typography.titleSmall)
+                            if (overdue.isNotEmpty()) Text("Gecikmiş: ${overdue.map { it.tx.customerId }.distinct().size} müştəri · ${overdue.sumOf { it.remaining }.money()}",
+                                style = MaterialTheme.typography.titleSmall)
+                        }
+                    }
+                }
+            }
             item { SearchField(q, { q = it }, "Borclu axtar") }
             if (debtors.isEmpty()) item { EmptyState(Icons.Default.CheckCircle, "Borclu müştəri yoxdur") }
             items(debtors, key = { it.id }) { c ->
@@ -109,6 +133,7 @@ fun DebtsScreen(nav: NavController) {
                             Text(listOfNotNull(c.phone.takeIf { it.isNotBlank() }, c.firstDebtAt?.let { "Borc tarixi: " + Dates.date(it) }).joinToString(" · "),
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(c.debt.money(), style = MaterialTheme.typography.titleLarge.merge(NumberStyle), color = extra.warning)
+                            DuePill(nextDue(c.id))
                         }
                         Button(onClick = { pay = c }) { Text("Ödə") }
                     }
@@ -129,8 +154,8 @@ fun DebtsScreen(nav: NavController) {
         if (picked == null && !newC) CustomerPickerDialog(customers, onPick = { picked = it }, onAddNew = { newC = true }, onDismiss = { if (picked == null) add = false })
         if (newC) CustomerDialog(null, onSave = { c -> runner.run { picked = app.repo.dao.getCustomer(app.repo.saveCustomer(c)) } }) { newC = false }
         picked?.let { c ->
-            AmountDialog("Borc əlavə et: ${c.name}", "Əlavə et", info = "Kassaya təsir etmir (məs. köhnə borcların qeydiyyatı).",
-                onConfirm = { a, _, n -> runner.run(success = "Borc əlavə edildi") { app.repo.addManualDebt(c.id, a, n) } },
+            DebtAddDialog("Borc əlavə et: ${c.name}",
+                onConfirm = { a, due, n -> runner.run(success = "Borc əlavə edildi") { app.repo.addManualDebt(c.id, a, n, due) } },
                 onDismiss = { picked = null; add = false })
         }
     }
@@ -144,8 +169,10 @@ fun CustomerDetailScreen(nav: NavController, id: Long) {
     val debt by app.repo.dao.observeCustomerDebt(id).collectAsState(0L)
     val txs by app.repo.dao.observeDebtTx(id).collectAsState(emptyList())
     val sales by app.repo.dao.observeCustomerSales(id).collectAsState(emptyList())
+    val open = remember(txs) { DebtSchedule.open(txs) }
     var tab by remember { mutableIntStateOf(0) }
     var dialog by remember { mutableStateOf<String?>(null) }
+    var dueFor by remember { mutableStateOf<OpenDebt?>(null) }
     val extra = LocalExtraColors.current
 
     Scaffold(topBar = {
@@ -169,6 +196,7 @@ fun CustomerDetailScreen(nav: NavController, id: Long) {
                     InfoRow("Ödənilən məbləğ", paid.money(), valueColor = extra.positive)
                     InfoRow("Qalan borc", debt.money(), bold = true, valueColor = if (debt > 0) extra.warning else MaterialTheme.colorScheme.onSurface)
                     txs.filter { it.amount > 0 }.minOfOrNull { it.createdAt }?.let { InfoRow("Borcun yaranma tarixi", Dates.date(it)) }
+                    DebtSchedule.nextDue(open)?.let { InfoRow("Növbəti ödəniş günü", Dates.date(it)) }
                     InfoRow("Alış-veriş", "${active.size} satış · ${active.sumOf { it.total }.money()}")
                 }
             }
@@ -176,6 +204,29 @@ fun CustomerDetailScreen(nav: NavController, id: Long) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { dialog = "pay" }, enabled = debt > 0, modifier = Modifier.weight(1f)) { Text("Borc ödə") }
                     FilledTonalButton(onClick = { dialog = "add" }, modifier = Modifier.weight(1f)) { Text("Borc əlavə et") }
+                }
+            }
+            if (open.isNotEmpty()) {
+                item { SectionTitle("Açıq borclar (${open.size})") }
+                items(open, key = { "o" + it.tx.id }) { o ->
+                    PosCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(o.tx.note.ifBlank { debtTypeName(o.tx.type) }, style = MaterialTheme.typography.titleSmall)
+                                Text("Yaranıb: ${Dates.date(o.tx.createdAt)}" + if (o.remaining != o.tx.amount) " · ilkin ${o.tx.amount.money()}" else "",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.height(4.dp))
+                                if (o.dueAt != null) DuePill(o.dueAt) else Pill("Ödəniş tarixi yoxdur", MaterialTheme.colorScheme.outline)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(o.remaining.money(), style = MaterialTheme.typography.titleMedium.merge(NumberStyle), color = extra.warning)
+                                TextButton(onClick = { dueFor = o }) {
+                                    Icon(Icons.Default.EditCalendar, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp))
+                                    Text(if (o.dueAt == null) "Tarix təyin et" else "Tarixi dəyiş")
+                                }
+                            }
+                        }
+                    }
                 }
             }
             item {
@@ -190,7 +241,10 @@ fun CustomerDetailScreen(nav: NavController, id: Long) {
                     ListItem(
                         modifier = if (t.saleId != null) Modifier.clickable { nav.navigate(Routes.sale(t.saleId)) } else Modifier,
                         headlineContent = { Text(debtTypeName(t.type) + (t.method?.let { " · " + PosRepository.methodName(it) } ?: "")) },
-                        supportingContent = { Text(Dates.dateTime(t.createdAt) + if (t.note.isNotBlank()) " · ${t.note}" else "") },
+                        supportingContent = {
+                            Text(Dates.dateTime(t.createdAt) + (if (t.note.isNotBlank()) " · ${t.note}" else "") +
+                                (t.dueAt?.let { "\nÖdəniş tarixi: ${Dates.date(it)}" } ?: ""))
+                        },
                         trailingContent = {
                             Text((if (t.amount > 0) "+" else "") + t.amount.money(), style = MaterialTheme.typography.titleSmall.merge(NumberStyle),
                                 color = if (t.amount > 0) extra.warning else extra.positive)
@@ -214,13 +268,18 @@ fun CustomerDetailScreen(nav: NavController, id: Long) {
         when (dialog) {
             "pay" -> AmountDialog("Borc ödənişi", "Ödə", initial = debt, showMethod = true, info = "Qalan borc: ${debt.money()}",
                 onConfirm = { a, m, n -> runner.run(success = "Ödəniş qəbul edildi") { app.repo.payDebt(c.id, a, m, n) } }, onDismiss = { dialog = null })
-            "add" -> AmountDialog("Borc əlavə et", "Əlavə et", info = "Kassaya təsir etmir.",
-                onConfirm = { a, _, n -> runner.run(success = "Borc əlavə edildi") { app.repo.addManualDebt(c.id, a, n) } }, onDismiss = { dialog = null })
+            "add" -> DebtAddDialog("Borc əlavə et",
+                onConfirm = { a, due, n -> runner.run(success = "Borc əlavə edildi") { app.repo.addManualDebt(c.id, a, n, due) } }, onDismiss = { dialog = null })
             "edit" -> CustomerDialog(c, onSave = { runner.run(success = "Yadda saxlanıldı") { app.repo.saveCustomer(it) } }) { dialog = null }
             "delete" -> ConfirmDialog("Müştərini sil", "${c.name} silinsin?", "Sil", destructive = true,
                 onConfirm = { runner.run(success = "Müştəri silindi", onDone = { nav.popBackStack() }) { app.repo.deleteCustomer(c.id) } },
                 onDismiss = { dialog = null })
         }
+    }
+    dueFor?.let { o ->
+        DueDateDialog(o.dueAt, "${o.tx.note.ifBlank { debtTypeName(o.tx.type) }}: qalan ${o.remaining.money()}",
+            onConfirm = { d -> runner.run(success = "Ödəniş tarixi yeniləndi") { app.repo.setDebtDueDate(o.tx.id, d) } },
+            onDismiss = { dueFor = null })
     }
 }
 

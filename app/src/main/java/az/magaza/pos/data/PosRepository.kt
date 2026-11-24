@@ -132,6 +132,7 @@ class PosRepository(
         cardPaid: Long,
         customerId: Long?,
         note: String = "",
+        debtDueAt: Long? = null,
     ): Long = db.withTransaction {
         if (lines.isEmpty()) throw PosException("Səbət boşdur")
         if (lines.any { it.quantity <= 0 }) throw PosException("Say 0-dan böyük olmalıdır")
@@ -183,7 +184,8 @@ class PosRepository(
         if (cardPaid > 0) dao.insertCashTx(CashTransaction(createdAt = now, type = CashType.SALE,
             method = PayMethod.CARD, amount = cardPaid, refId = saleId, note = "Satış #$saleId"))
         if (debt > 0) dao.insertDebtTx(CustomerDebtTx(customerId = customer!!.id, createdAt = now,
-            type = DebtType.SALE, amount = debt, saleId = saleId, note = "Satış #$saleId"))
+            type = DebtType.SALE, amount = debt, saleId = saleId, note = "Satış #$saleId",
+            dueAt = debtDueAt?.let { az.magaza.pos.util.Dates.startOfDay(it) }))
 
         log("Satış #$saleId", "Cəm: ${Money.formatAzn(total)}, nağd: ${Money.formatAzn(cashPaid)}, " +
             "kart: ${Money.formatAzn(cardPaid)}, borc: ${Money.formatAzn(debt)}" +
@@ -239,12 +241,23 @@ class PosRepository(
         log("Müştəri silindi", c.name)
     }
 
-    suspend fun addManualDebt(customerId: Long, amount: Long, note: String) = db.withTransaction {
+    suspend fun addManualDebt(customerId: Long, amount: Long, note: String, dueAt: Long? = null) = db.withTransaction {
         if (amount <= 0) throw PosException("Məbləğ 0-dan böyük olmalıdır")
         val c = dao.getCustomer(customerId) ?: throw PosException("Müştəri tapılmadı")
         dao.insertDebtTx(CustomerDebtTx(customerId = c.id, createdAt = clock(), type = DebtType.MANUAL,
-            amount = amount, note = note.trim()))
+            amount = amount, note = note.trim(), dueAt = dueAt?.let { az.magaza.pos.util.Dates.startOfDay(it) }))
         log("Borc əlavə edildi", "${c.name}: ${Money.formatAzn(amount)}. $note")
+    }
+
+    /** Borcun ödəniş tarixini təyin edir / dəyişir (null — tarixi silir). */
+    suspend fun setDebtDueDate(debtTxId: Long, dueAt: Long?) = db.withTransaction {
+        val t = dao.getDebtTx(debtTxId) ?: throw PosException("Borc tapılmadı")
+        if (t.amount <= 0) throw PosException("Yalnız borc yazılışına tarix təyin etmək olar")
+        val day = dueAt?.let { az.magaza.pos.util.Dates.startOfDay(it) }
+        dao.setDebtDue(debtTxId, day)
+        val c = dao.getCustomer(t.customerId)
+        log("Borcun ödəniş tarixi", "${c?.name ?: "-"}: ${t.note.ifBlank { Money.formatAzn(t.amount) }} → " +
+            (day?.let { az.magaza.pos.util.Dates.date(it) } ?: "tarixsiz"))
     }
 
     /** Müştəri borcunu ödəyir; ödəniş kassaya daxil olur. */

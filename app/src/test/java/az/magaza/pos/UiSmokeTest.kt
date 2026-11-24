@@ -158,4 +158,25 @@ class UiSmokeTest {
         rule.waitUntil(5000) { rule.onAllNodesWithText("Ödəniş", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("1 məhsul").assertExists()
     }
+
+    @Test
+    fun overdueDebtIsShownAndDueDateEditable() {
+        seed()
+        runBlocking {
+            val cid = app.repo.dao.allCustomers().first().id
+            app.repo.addManualDebt(cid, 2500, "Köhnə borc", dueAt = System.currentTimeMillis() - 2 * 86_400_000L)
+        }
+        rule.waitForIdle()
+        rule.waitUntil(5000) { rule.onAllNodesWithText("Ödəniş günü çatmış borclar", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        openDrawerItem("Borclar")
+        rule.waitUntil(5000) { rule.onAllNodesWithText("2 gün gecikib", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        click("Test Müştəri")
+        rule.waitUntil(5000) { rule.onAllNodesWithText("Açıq borclar", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        rule.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Tarixi dəyiş", substring = true))
+        click("Tarixi dəyiş")
+        rule.waitUntil(5000) { rule.onAllNodesWithText("1 həftə", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        click("1 həftə")
+        click("Yadda saxla")
+        rule.waitUntil(5000) { runBlocking { (app.repo.dao.allDebtTx().single().dueAt ?: 0) > System.currentTimeMillis() } }
+    }
 }

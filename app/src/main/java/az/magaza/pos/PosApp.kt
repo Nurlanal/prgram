@@ -27,6 +27,8 @@ class PosApp : Application() {
         settings = SettingsStore(this)
         backup = BackupManager(this, repo)
         runAutoBackupIfNeeded()
+        az.magaza.pos.notify.DebtReminders.createChannel(this)
+        runCatching { az.magaza.pos.notify.DebtReminders.schedule(this) }
     }
 
     /** Gündə bir dəfə avtomatik backup (daxili qovluq + Download/MagazaPOS). */

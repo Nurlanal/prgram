@@ -21,8 +21,8 @@ android {
         applicationId = "az.magaza.pos"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -69,6 +69,9 @@ android {
 
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 
+// Room migrasiya testləri (Robolectric) üçün sxemlər — yalnız debug, release APK-ya daxil olmur
+android.sourceSets.getByName("debug").assets.srcDir("$projectDir/schemas")
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
@@ -89,6 +92,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
@@ -99,4 +103,6 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation(composeBom)
     testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("androidx.work:work-testing:2.9.1")
+    testImplementation("androidx.room:room-testing:2.6.1")
 }

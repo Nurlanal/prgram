@@ -73,6 +73,7 @@ class SalesViewModel(val repo: PosRepository) : ViewModel() {
     var cashText by mutableStateOf("")
     var cardText by mutableStateOf("")
     var note by mutableStateOf("")
+    var debtDueAt by mutableStateOf<Long?>(null)
 
     val subtotal get() = cart.sumOf { it.lineTotal }
     val discount: Long
@@ -134,7 +135,7 @@ class SalesViewModel(val repo: PosRepository) : ViewModel() {
 
     fun clear() {
         cart.clear(); discountText = ""; discountPercent = false; customer = null
-        payMode = PayMode.CASH; cashText = ""; cardText = ""; note = ""
+        payMode = PayMode.CASH; cashText = ""; cardText = ""; note = ""; debtDueAt = null
     }
 
     suspend fun complete(): Long {
@@ -143,6 +144,7 @@ class SalesViewModel(val repo: PosRepository) : ViewModel() {
         val id = repo.completeSale(
             lines = cart.map { CartLine(it.product.id, it.product.name, it.qty, it.price) },
             discount = discount, cashPaid = s.cash, cardPaid = s.card, customerId = customer?.id, note = note,
+            debtDueAt = if (s.debt > 0) debtDueAt else null,
         )
         clear()
         return id
@@ -363,6 +365,10 @@ private fun CheckoutSheet(vm: SalesViewModel, runner: Runner, onDone: (Long) -> 
                 MoneyField(vm.cashText, { vm.cashText = it }, "Nağd", Modifier.weight(1f))
                 MoneyField(vm.cardText, { vm.cardText = it }, "Kart", Modifier.weight(1f), imeAction = ImeAction.Done)
             }
+        }
+        if (split.debt > 0 || vm.payMode == PayMode.DEBT) {
+            Spacer(Modifier.height(8.dp))
+            DueDateSelector(vm.debtDueAt, { vm.debtDueAt = it })
         }
         TextInput(vm.note, { vm.note = it }, "Qeyd (istəyə görə)")
 

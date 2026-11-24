@@ -13,6 +13,8 @@ import az.magaza.pos.ui.theme.PosTheme
 
 class MainActivity : ComponentActivity() {
     private val locked = mutableStateOf(false)
+    /** Bildirişə toxunduqda açılacaq müştəri. */
+    private val openCustomer = mutableStateOf<Long?>(null)
     private var stoppedAt = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -20,16 +22,28 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val app = application as PosApp
         locked.value = app.settings.state.value.pinEnabled && savedInstanceState?.getBoolean("unlocked") != true
+        readIntent(intent)
         setContent {
             val settings by app.settings.state.collectAsState()
             PosTheme(settings.themeMode) {
                 if (locked.value && settings.pinEnabled) {
                     LockScreen(storeName = settings.storeName, check = { app.settings.checkPin(it) }, onUnlock = { locked.value = false })
                 } else {
-                    PosNavRoot()
+                    PosNavRoot(openCustomer = openCustomer.value, onCustomerOpened = { openCustomer.value = null })
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        readIntent(intent)
+    }
+
+    private fun readIntent(intent: android.content.Intent?) {
+        val id = intent?.getLongExtra(az.magaza.pos.notify.DebtReminders.EXTRA_CUSTOMER, 0L) ?: 0L
+        if (id > 0) openCustomer.value = id
+        intent?.removeExtra(az.magaza.pos.notify.DebtReminders.EXTRA_CUSTOMER)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -50,5 +64,6 @@ class MainActivity : ComponentActivity() {
             locked.value = true
         }
         app.runAutoBackupIfNeeded()
+        runCatching { az.magaza.pos.notify.DebtReminders.checkNow(this) }
     }
 }

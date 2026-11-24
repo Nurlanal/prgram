@@ -95,6 +95,18 @@ interface PosDao {
     @Insert
     suspend fun insertDebtTx(t: CustomerDebtTx): Long
 
+    @Query("SELECT * FROM customer_debt_tx ORDER BY createdAt, id")
+    fun observeAllDebtTx(): Flow<List<CustomerDebtTx>>
+
+    @Query("SELECT * FROM customer_debt_tx WHERE id = :id")
+    suspend fun getDebtTx(id: Long): CustomerDebtTx?
+
+    @Query("SELECT * FROM customer_debt_tx WHERE saleId = :saleId AND type = 'SALE' LIMIT 1")
+    fun observeSaleDebtTx(saleId: Long): Flow<CustomerDebtTx?>
+
+    @Query("UPDATE customer_debt_tx SET dueAt = :dueAt WHERE id = :id")
+    suspend fun setDebtDue(id: Long, dueAt: Long?)
+
     // ---------------- Təchizatçılar ----------------
     @Query(
         """
