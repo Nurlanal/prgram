@@ -57,6 +57,7 @@ object Routes {
     const val SETTINGS = "settings"
     const val BACKUP = "backup"
     const val LOG = "log"
+    const val STOCK_COUNT = "stockcount"
     fun productEdit(id: Long = 0, barcode: String = "") = "product/edit/$id?barcode=${android.net.Uri.encode(barcode)}"
     fun product(id: Long) = "product/$id"
     fun customer(id: Long) = "customer/$id"
@@ -79,6 +80,7 @@ private data class DrawerItem(val route: String, val label: String, val icon: Im
 
 private val drawerItems = listOf(
     DrawerItem(Routes.PURCHASES, "Mədaxil (anbara daxil)", Icons.Default.MoveToInbox),
+    DrawerItem(Routes.STOCK_COUNT, "Anbar sayımı (qalıq düzəlişi)", Icons.Default.FactCheck),
     DrawerItem(Routes.EXPENSES, "Məxaric (xərclər)", Icons.Default.Outbox),
     DrawerItem(Routes.DEBTS, "Borclar", Icons.Default.RequestQuote),
     DrawerItem(Routes.CUSTOMERS, "Müştərilər", Icons.Default.People),
@@ -192,6 +194,7 @@ fun PosNavRoot(
                         composable(Routes.SETTINGS) { SettingsScreen(nav) }
                         composable(Routes.BACKUP) { BackupScreen(nav) }
                         composable(Routes.LOG) { ActivityLogScreen(nav) }
+                        composable(Routes.STOCK_COUNT) { az.magaza.pos.ui.inventory.StockCountScreen(nav) }
                         composable(
                             "product/edit/{id}?barcode={barcode}",
                             arguments = listOf(

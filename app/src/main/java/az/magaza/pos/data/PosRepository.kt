@@ -36,6 +36,7 @@ class PosRepository(
         if (name.isEmpty()) throw PosException("Məhsul adı boş ola bilməz")
         if (p.stock < 0) throw PosException("Anbar sayı mənfi ola bilməz")
         if (p.minStock < 0) throw PosException("Minimum stok mənfi ola bilməz")
+        if (p.purchasePrice < 0 || p.salePrice < 0) throw PosException("Qiymət mənfi ola bilməz")
         if (p.barcode.isNotBlank()) {
             dao.findDuplicateCode(p.barcode.trim(), p.id)?.let {
                 throw PosException("Bu barkod artıq \"${it.name}\" məhsulunda var")
@@ -43,18 +44,29 @@ class PosRepository(
         }
         val clean = p.copy(name = name, barcode = p.barcode.trim(), sku = p.sku.trim(), brand = p.brand.trim())
         if (p.id == 0L) {
-            val id = dao.insertProduct(clean.copy(createdAt = clock()))
+            val withCost = clean.copy(createdAt = clock(), stockCost = clean.stock.toLong() * clean.purchasePrice)
+            val id = dao.insertProduct(withCost)
             if (clean.stock > 0) {
                 dao.insertStockMove(
                     StockMove(productId = id, productName = name, createdAt = clock(), type = StockType.INITIAL,
                         qtyChange = clean.stock, stockAfter = clean.stock, note = "İlkin qalıq")
                 )
             }
-            log("Məhsul əlavə edildi", "$name, qalıq: ${clean.stock}, satış qiyməti: ${Money.formatAzn(clean.salePrice)}")
+            log("Məhsul əlavə edildi", "$name, qalıq: ${clean.stock}, alış: ${Money.formatAzn(clean.purchasePrice)}, " +
+                "satış: ${Money.formatAzn(clean.salePrice)}, anbar dəyəri: ${Money.formatAzn(withCost.stockCost)}")
             id
         } else {
             val old = dao.getProduct(p.id) ?: throw PosException("Məhsul tapılmadı")
-            dao.updateProduct(clean.copy(createdAt = old.createdAt))
+            // Alış qiyməti əl ilə dəyişdirilibsə — bütün qalıq yeni qiymətlə qiymətləndirilir.
+            // Yalnız say dəyişibsə — dəyər mövcud orta mayaya görə (qəpiyinə qədər) düzəldilir.
+            val stockCost = when {
+                old.purchasePrice != clean.purchasePrice -> clean.stock.toLong() * clean.purchasePrice
+                old.stock != clean.stock -> Cost.afterRecount(old, clean.stock)
+                else -> old.stockCost
+            }
+            val saved = clean.copy(createdAt = old.createdAt, stockCost = stockCost,
+                purchasePrice = if (old.purchasePrice != clean.purchasePrice) clean.purchasePrice else Cost.avg(stockCost, clean.stock, old.purchasePrice))
+            dao.updateProduct(saved)
             if (old.stock != clean.stock) {
                 dao.insertStockMove(
                     StockMove(productId = p.id, productName = name, createdAt = clock(), type = StockType.ADJUST,
@@ -65,6 +77,7 @@ class PosRepository(
                 if (old.salePrice != clean.salePrice) add("satış qiyməti ${Money.formatAzn(old.salePrice)} → ${Money.formatAzn(clean.salePrice)}")
                 if (old.purchasePrice != clean.purchasePrice) add("alış qiyməti ${Money.formatAzn(old.purchasePrice)} → ${Money.formatAzn(clean.purchasePrice)}")
                 if (old.stock != clean.stock) add("stok ${old.stock} → ${clean.stock}")
+                if (old.stockCost != stockCost) add("anbar dəyəri ${Money.formatAzn(old.stockCost)} → ${Money.formatAzn(stockCost)}")
             }
             log("Məhsul redaktə edildi", name + if (changes.isNotEmpty()) ": " + changes.joinToString(", ") else "")
             p.id
@@ -74,19 +87,41 @@ class PosRepository(
     suspend fun deleteProduct(id: Long) = db.withTransaction {
         val p = dao.getProduct(id) ?: return@withTransaction
         dao.deleteProduct(id)
-        log("Məhsul silindi", "${p.name} (qalıq: ${p.stock})")
+        log("Məhsul silindi", "${p.name} (qalıq: ${p.stock}, anbar dəyəri: ${Money.formatAzn(p.stockCost)})")
     }
 
+    /** Bir məhsulun anbar qalığını düzəldir (sayım, zədələnmə, itki). Dəyər qəpiyinə qədər düzəldilir. */
     suspend fun adjustStock(productId: Long, newStock: Int, note: String) = db.withTransaction {
         if (newStock < 0) throw PosException("Stok mənfi ola bilməz")
         val p = dao.getProduct(productId) ?: throw PosException("Məhsul tapılmadı")
         if (p.stock == newStock) return@withTransaction
-        dao.updateProduct(p.copy(stock = newStock))
+        val cost = Cost.afterRecount(p, newStock)
+        dao.updateProduct(p.copy(stock = newStock, stockCost = cost, purchasePrice = Cost.avg(cost, newStock, p.purchasePrice)))
         dao.insertStockMove(
             StockMove(productId = p.id, productName = p.name, createdAt = clock(), type = StockType.ADJUST,
                 qtyChange = newStock - p.stock, stockAfter = newStock, note = note.ifBlank { "Stok düzəlişi" })
         )
-        log("Stok dəyişdirildi", "${p.name}: ${p.stock} → $newStock. $note")
+        log("Stok düzəldildi", "${p.name}: ${p.stock} → $newStock, dəyər ${Money.formatAzn(p.stockCost)} → ${Money.formatAzn(cost)}. $note")
+    }
+
+    data class CountResult(val changed: Int, val qtyDiff: Int, val valueDiff: Long)
+
+    /** Anbar sayımı: faktiki sayılan qalıqları bir əməliyyatla tətbiq edir. */
+    suspend fun applyStockCount(counts: Map<Long, Int>, note: String): CountResult = db.withTransaction {
+        var changed = 0; var qty = 0; var value = 0L
+        counts.forEach { (id, n) ->
+            if (n < 0) throw PosException("Say mənfi ola bilməz")
+            val p = dao.getProduct(id) ?: return@forEach
+            if (p.stock == n) return@forEach
+            val cost = Cost.afterRecount(p, n)
+            dao.updateProduct(p.copy(stock = n, stockCost = cost, purchasePrice = Cost.avg(cost, n, p.purchasePrice)))
+            dao.insertStockMove(StockMove(productId = p.id, productName = p.name, createdAt = clock(), type = StockType.ADJUST,
+                qtyChange = n - p.stock, stockAfter = n, note = note.ifBlank { "Anbar sayımı" }))
+            changed++; qty += n - p.stock; value += cost - p.stockCost
+        }
+        if (changed > 0) log("Anbar sayımı", "$changed məhsul düzəldildi, say fərqi: ${if (qty > 0) "+" else ""}$qty, " +
+            "dəyər fərqi: ${Money.formatAzn(value)}. $note")
+        CountResult(changed, qty, value)
     }
 
     /** Mövcud məhsula barkod təyin edir (məs. satış zamanı tanınmayan barkod skan edildikdə). */
@@ -140,16 +175,13 @@ class PosRepository(
 
         val now = clock()
         var subtotal = 0L
-        var cost = 0L
-        val products = lines.map { line ->
-            val p = dao.getProduct(line.productId) ?: throw PosException("\"${line.name}\" məhsulu tapılmadı")
-            if (line.quantity > p.stock) {
+        lines.groupBy { it.productId }.forEach { (pid, ls) ->
+            val p = dao.getProduct(pid) ?: throw PosException("\"${ls.first().name}\" məhsulu tapılmadı")
+            if (ls.sumOf { it.quantity } > p.stock) {
                 throw PosException("\"${p.name}\" üçün anbarda kifayət qədər məhsul yoxdur (qalıq: ${p.stock})")
             }
-            subtotal += line.unitPrice * line.quantity
-            cost += p.purchasePrice * line.quantity
-            p
         }
+        lines.forEach { subtotal += it.unitPrice * it.quantity }
         if (discount > subtotal) throw PosException("Endirim ümumi məbləğdən çox ola bilməz")
         val total = subtotal - discount
         if (cashPaid + cardPaid > total) throw PosException("Ödəniş məbləği ümumi məbləğdən çoxdur")
@@ -161,24 +193,29 @@ class PosRepository(
             Sale(
                 createdAt = now, customerId = customer?.id, customerName = customer?.name ?: "",
                 itemCount = lines.sumOf { it.quantity }, subtotal = subtotal, discount = discount, total = total,
-                costTotal = cost, profit = total - cost, paidCash = cashPaid, paidCard = cardPaid,
+                costTotal = 0, profit = 0, paidCash = cashPaid, paidCard = cardPaid,
                 debtAmount = debt, note = note.trim(),
             )
         )
-        dao.insertSaleItems(lines.zip(products).map { (line, p) ->
-            SaleItem(saleId = saleId, productId = p.id, productName = p.name, quantity = line.quantity,
-                unitPrice = line.unitPrice, unitCost = p.purchasePrice, lineTotal = line.unitPrice * line.quantity)
-        })
-        // Eyni məhsul səbətdə bir neçə sətirdə ola bilər: stoku ardıcıl azaldırıq.
-        lines.forEach { line ->
+        // Hər sətir anbardan öz dəqiq maya dəyərini götürür (qəpiyinə qədər); stok ardıcıl azaldılır.
+        var cost = 0L
+        val items = lines.map { line ->
             val p = dao.getProduct(line.productId)!!
             if (line.quantity > p.stock) throw PosException("\"${p.name}\" üçün anbarda kifayət qədər məhsul yoxdur")
+            val lineCost = Cost.take(p, line.quantity)
             val after = p.stock - line.quantity
-            dao.updateProduct(p.copy(stock = after))
+            val remainingCost = p.stockCost - lineCost
+            dao.updateProduct(p.copy(stock = after, stockCost = remainingCost, purchasePrice = Cost.avg(remainingCost, after, p.purchasePrice)))
             dao.insertStockMove(StockMove(productId = p.id, productName = p.name, createdAt = now,
                 type = StockType.SALE, qtyChange = -line.quantity, stockAfter = after, refId = saleId,
                 note = "Satış #$saleId"))
+            cost += lineCost
+            SaleItem(saleId = saleId, productId = p.id, productName = p.name, quantity = line.quantity,
+                unitPrice = line.unitPrice, unitCost = Cost.avg(lineCost, line.quantity, p.purchasePrice),
+                lineTotal = line.unitPrice * line.quantity, lineCost = lineCost)
         }
+        dao.insertSaleItems(items)
+        dao.updateSale(dao.getSale(saleId)!!.copy(costTotal = cost, profit = total - cost))
         if (cashPaid > 0) dao.insertCashTx(CashTransaction(createdAt = now, type = CashType.SALE,
             method = PayMethod.CASH, amount = cashPaid, refId = saleId, note = "Satış #$saleId"))
         if (cardPaid > 0) dao.insertCashTx(CashTransaction(createdAt = now, type = CashType.SALE,
@@ -203,7 +240,9 @@ class PosRepository(
             val p = dao.getProduct(item.productId)
             if (p != null) {
                 val after = p.stock + item.quantity
-                dao.updateProduct(p.copy(stock = after))
+                val back = if (item.lineCost > 0 || item.unitCost == 0L) item.lineCost else item.unitCost * item.quantity
+                val cost = p.stockCost + back
+                dao.updateProduct(p.copy(stock = after, stockCost = cost, purchasePrice = Cost.avg(cost, after, p.purchasePrice)))
                 dao.insertStockMove(StockMove(productId = p.id, productName = p.name, createdAt = now,
                     type = StockType.SALE_CANCEL, qtyChange = item.quantity, stockAfter = after, refId = saleId,
                     note = "Satış #$saleId ləğvi"))
@@ -322,11 +361,14 @@ class PosRepository(
         date: Long,
         note: String,
         newSalePrice: Long? = null,
+        /** Ümumi alış məbləği (məs. 3 ədəd cəmi 10.00 ₼). Verilərsə, vahid qiymət bundan hesablanır və anbar dəyəri dəqiq bu məbləğ qədər artır. */
+        totalCost: Long? = null,
     ): Long = db.withTransaction {
         if (quantity <= 0) throw PosException("Say 0-dan böyük olmalıdır")
-        if (unitCost < 0 || paidAmount < 0) throw PosException("Məbləğ mənfi ola bilməz")
+        if (unitCost < 0 || paidAmount < 0 || (totalCost ?: 0) < 0) throw PosException("Məbləğ mənfi ola bilməz")
         val p = dao.getProduct(productId) ?: throw PosException("Məhsul tapılmadı")
-        val total = unitCost * quantity
+        val total = totalCost ?: (unitCost * quantity)
+        val unit = if (totalCost != null) Cost.avg(totalCost, quantity, unitCost) else unitCost
         if (paidAmount > total) throw PosException("Ödənilən məbləğ ümumi alış məbləğindən çox ola bilməz")
         val supplier = supplierId?.let { dao.getSupplier(it) ?: throw PosException("Təchizatçı tapılmadı") }
         val debt = total - paidAmount
@@ -337,16 +379,13 @@ class PosRepository(
             else -> PurchaseStatus.PARTIAL
         }
         val newStock = p.stock + quantity
-        val oldStockForAvg = p.stock.coerceAtLeast(0)
-        val avgCost = if (oldStockForAvg + quantity > 0)
-            (p.purchasePrice * oldStockForAvg + total + (oldStockForAvg + quantity) / 2) / (oldStockForAvg + quantity)
-        else unitCost
+        val newStockCost = p.stockCost + total
 
         val purchaseId = dao.insertPurchase(Purchase(createdAt = date, productId = p.id, productName = p.name,
-            quantity = quantity, unitCost = unitCost, total = total, supplierId = supplier?.id,
+            quantity = quantity, unitCost = unit, total = total, supplierId = supplier?.id,
             supplierName = supplier?.name ?: "", paymentStatus = status, paidAmount = paidAmount, method = method,
             note = note.trim()))
-        dao.updateProduct(p.copy(stock = newStock, purchasePrice = avgCost,
+        dao.updateProduct(p.copy(stock = newStock, stockCost = newStockCost, purchasePrice = Cost.avg(newStockCost, newStock, unit),
             salePrice = newSalePrice ?: p.salePrice, supplierId = supplier?.id ?: p.supplierId))
         dao.insertStockMove(StockMove(productId = p.id, productName = p.name, createdAt = date,
             type = StockType.PURCHASE, qtyChange = quantity, stockAfter = newStock, refId = purchaseId,
@@ -355,7 +394,7 @@ class PosRepository(
             method = method, amount = -paidAmount, refId = purchaseId, note = "Mədaxil #$purchaseId: ${p.name}"))
         if (debt > 0) dao.insertSupplierTx(SupplierTx(supplierId = supplier!!.id, createdAt = date,
             type = SupplierTxType.PURCHASE, amount = debt, purchaseId = purchaseId, note = "Mədaxil #$purchaseId: ${p.name}"))
-        log("Mədaxil #$purchaseId", "${p.name}: $quantity ədəd × ${Money.formatAzn(unitCost)} = ${Money.formatAzn(total)}, " +
+        log("Mədaxil #$purchaseId", "${p.name}: $quantity ədəd × ${Money.formatAzn(unit)} = ${Money.formatAzn(total)}, " +
             "ödənildi: ${Money.formatAzn(paidAmount)}" + (supplier?.let { ", təchizatçı: ${it.name}" } ?: ""))
         purchaseId
     }
@@ -368,7 +407,8 @@ class PosRepository(
         if (p != null) {
             if (p.stock < pu.quantity) throw PosException("Anbarda kifayət qədər məhsul yoxdur (qalıq: ${p.stock}). Məhsulun bir hissəsi artıq satılıb.")
             val after = p.stock - pu.quantity
-            dao.updateProduct(p.copy(stock = after))
+            val cost = if (after == 0) 0L else (p.stockCost - pu.total).coerceAtLeast(0)
+            dao.updateProduct(p.copy(stock = after, stockCost = cost, purchasePrice = Cost.avg(cost, after, p.purchasePrice)))
             dao.insertStockMove(StockMove(productId = p.id, productName = p.name, createdAt = now,
                 type = StockType.PURCHASE_CANCEL, qtyChange = -pu.quantity, stockAfter = after, refId = purchaseId,
                 note = "Mədaxil #$purchaseId ləğvi"))
@@ -459,5 +499,28 @@ class PosRepository(
             PayMethod.CASH -> "Nağd"
             else -> "-"
         }
+    }
+}
+
+/** Dəqiq maya dəyəri hesablamaları (hamısı qəpiklə, tam ədədlərlə). */
+object Cost {
+    /** Orta vahid qiymət (göstərmək üçün); stok 0-dırsa əvvəlki qiymət saxlanılır. */
+    fun avg(cost: Long, qty: Int, fallback: Long): Long = if (qty > 0) (cost + qty / 2) / qty else fallback
+
+    /**
+     * Anbardan qty ədəd çıxanda onların dəqiq dəyəri. Son ədəd(lər) qalan dəyərin hamısını aparır,
+     * buna görə yuvarlaqlaşdırma qalığı heç vaxt "itmir" — satılanların mayası + anbar dəyəri = alışların cəmi.
+     */
+    fun take(p: Product, qty: Int): Long = when {
+        qty <= 0 -> 0
+        qty >= p.stock -> p.stockCost
+        else -> (p.stockCost * qty + p.stock / 2) / p.stock
+    }
+
+    /** Sayım/düzəlişdən sonra yeni dəyər: azalanda mütənasib çıxılır, artanda orta qiymətlə əlavə olunur. */
+    fun afterRecount(p: Product, newStock: Int): Long = when {
+        newStock == p.stock -> p.stockCost
+        newStock < p.stock -> p.stockCost - take(p, p.stock - newStock)
+        else -> p.stockCost + (newStock - p.stock).toLong() * (if (p.stock > 0) avg(p.stockCost, p.stock, p.purchasePrice) else p.purchasePrice)
     }
 }

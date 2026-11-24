@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CashTransaction::class, Expense::class, Purchase::class, CustomerDebtTx::class,
         SupplierTx::class, StockMove::class, CashSession::class, ActivityLog::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -29,7 +29,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2)
+        /** v2 → v3: dəqiq anbar dəyəri (stockCost) və satış sətrinin dəqiq mayası (lineCost). */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE products ADD COLUMN stockCost INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE products SET stockCost = stock * purchasePrice WHERE stock > 0")
+                db.execSQL("ALTER TABLE sale_items ADD COLUMN lineCost INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE sale_items SET lineCost = unitCost * quantity")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
 
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)

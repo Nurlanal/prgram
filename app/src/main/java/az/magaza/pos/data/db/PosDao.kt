@@ -38,7 +38,7 @@ interface PosDao {
     @Query("SELECT COALESCE(SUM(stock),0) FROM products WHERE stock > 0")
     fun observeTotalStock(): Flow<Long>
 
-    @Query("SELECT COALESCE(SUM(stock * purchasePrice),0) FROM products WHERE stock > 0")
+    @Query("SELECT COALESCE(SUM(stockCost),0) FROM products WHERE stock > 0")
     fun observeStockCostValue(): Flow<Long>
 
     @Query("SELECT COALESCE(SUM(stock * salePrice),0) FROM products WHERE stock > 0")
@@ -201,7 +201,7 @@ interface PosDao {
 
     @Query(
         """SELECT i.productId AS productId, i.productName AS productName, SUM(i.quantity) AS qty,
-                  SUM(i.lineTotal) AS revenue, SUM(i.unitCost * i.quantity) AS cost
+                  SUM(i.lineTotal) AS revenue, SUM(i.lineCost) AS cost
            FROM sale_items i JOIN sales s ON s.id = i.saleId
            WHERE s.status = 'ACTIVE' AND s.createdAt BETWEEN :from AND :to
            GROUP BY i.productId, i.productName ORDER BY revenue DESC"""
@@ -210,7 +210,7 @@ interface PosDao {
 
     @Query(
         """SELECT i.productId AS productId, i.productName AS productName, SUM(i.quantity) AS qty,
-                  SUM(i.lineTotal) AS revenue, SUM(i.unitCost * i.quantity) AS cost
+                  SUM(i.lineTotal) AS revenue, SUM(i.lineCost) AS cost
            FROM sale_items i JOIN sales s ON s.id = i.saleId
            WHERE s.status = 'ACTIVE' AND s.createdAt BETWEEN :from AND :to
            GROUP BY i.productId, i.productName ORDER BY qty DESC LIMIT :limit"""

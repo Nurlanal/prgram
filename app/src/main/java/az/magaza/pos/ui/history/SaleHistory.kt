@@ -166,7 +166,7 @@ fun SaleDetailScreen(nav: NavController, id: Long) {
                         Text("${i.quantity} × ${i.unitPrice.money()}", Modifier.weight(1f))
                         Text(i.lineTotal.money(), style = MaterialTheme.typography.titleSmall.merge(NumberStyle))
                     }
-                    Text("Maya: ${(i.unitCost * i.quantity).money()} · Qazanc: ${(i.lineTotal - i.unitCost * i.quantity).money()}",
+                    Text("Maya: ${i.lineCost.money()} · Qazanc: ${(i.lineTotal - i.lineCost).money()}",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }

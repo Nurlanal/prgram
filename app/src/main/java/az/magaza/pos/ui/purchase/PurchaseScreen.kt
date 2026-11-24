@@ -132,6 +132,7 @@ private fun PurchaseFormDialog(vm: PurchaseViewModel, runner: Runner, preselect:
     var pickProduct by remember { mutableStateOf(false) }
     var qty by remember { mutableStateOf("1") }
     var cost by remember { mutableStateOf("") }
+    var byTotal by remember { mutableStateOf(false) }
     var newSale by remember { mutableStateOf("") }
     var supplier by remember { mutableStateOf<Supplier?>(null) }
     var pay by remember { mutableStateOf(PurchasePay.PAID) }
@@ -150,7 +151,7 @@ private fun PurchaseFormDialog(vm: PurchaseViewModel, runner: Runner, preselect:
 
     val q = qty.toIntOrNull() ?: 0
     val c = Money.parse(cost.ifBlank { "0" })
-    val total = if (c != null) c * q else 0L
+    val total = if (c != null) (if (byTotal) c else c * q) else 0L
     val paidAmount = when (pay) {
         PurchasePay.PAID -> total
         PurchasePay.DEBT -> 0L
@@ -180,11 +181,23 @@ private fun PurchaseFormDialog(vm: PurchaseViewModel, runner: Runner, preselect:
                         Icon(Icons.Default.ChevronRight, null)
                     }
                 }
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    SegmentedButton(!byTotal, {
+                        if (byTotal && c != null && q > 0) cost = Money.toInput((c + q / 2) / q)
+                        byTotal = false
+                    }, SegmentedButtonDefaults.itemShape(0, 2)) { Text("Vahid qiyməti") }
+                    SegmentedButton(byTotal, {
+                        if (!byTotal && c != null) cost = Money.toInput(c * q)
+                        byTotal = true
+                    }, SegmentedButtonDefaults.itemShape(1, 2)) { Text("Ümumi məbləğ") }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IntField(qty, { qty = it }, "Say", Modifier.weight(1f))
-                    MoneyField(cost, { cost = it }, "Alış qiyməti", Modifier.weight(1f))
+                    MoneyField(cost, { cost = it }, if (byTotal) "Ümumi alış məbləği" else "Vahid alış qiyməti", Modifier.weight(1f))
                 }
                 Text("Ümumi alış məbləği: ${total.money()}", style = MaterialTheme.typography.titleMedium)
+                if (byTotal && q > 0 && total > 0) Text("Bir ədəd ≈ ${((total + q / 2) / q).money()} · anbar dəyəri dəqiq ${total.money()} artacaq",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 MoneyField(newSale, { newSale = it }, "Yeni satış qiyməti (istəyə görə)",
                     supporting = product?.let { "Hazırkı: ${it.salePrice.money()}" })
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -211,8 +224,8 @@ private fun PurchaseFormDialog(vm: PurchaseViewModel, runner: Runner, preselect:
         confirmButton = {
             Button(enabled = error == null && !runner.busy, onClick = {
                 runner.run(success = "Mədaxil təsdiqləndi, anbar yeniləndi", onDone = onDismiss) {
-                    vm.repo.addPurchase(product!!.id, q, c!!, supplier?.id, paidAmount, method, date, note,
-                        newSalePrice = Money.parse(newSale)?.takeIf { it > 0 })
+                    vm.repo.addPurchase(product!!.id, q, if (byTotal) 0 else c!!, supplier?.id, paidAmount, method, date, note,
+                        newSalePrice = Money.parse(newSale)?.takeIf { it > 0 }, totalCost = if (byTotal) c!! else null)
                 }
             }) { Text("Təsdiqlə") }
         },

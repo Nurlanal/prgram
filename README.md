@@ -10,7 +10,7 @@ Telefon, elektronika və aksesuar mağazaları üçün **tam offline** işləyə
 
 ## 1. Quraşdırma (APK)
 
-1. `apk/MagazaPOS-v1.2.0.apk` faylını telefona köçürün (USB, Telegram, WhatsApp, Google Drive və s.).
+1. `apk/MagazaPOS-v1.3.0.apk` faylını telefona köçürün (USB, Telegram, WhatsApp, Google Drive və s.).
 2. Telefonda faylı açın.
 3. "Naməlum mənbələrdən quraşdırma" soruşularsa: **Ayarlar → İcazə ver** (bu fayl üçün) seçin.
 4. **Quraşdır** düyməsini basın.
@@ -61,7 +61,11 @@ satış 50 ₼, maya 25 ₼, qazanc 25 ₼, stok 15, kassa +30 ₼, müştəri b
 
 Digər qaydalar:
 - Stokdan çox satmaq mümkün deyil.
-- Mədaxildə məhsulun alış qiyməti **orta çəkili maya dəyəri** ilə yenilənir.
+- **Anbar dəyəri qəpiyinə qədər dəqiqdir.** Hər məhsul üçün anbardakı malların *ümumi* alış dəyəri saxlanılır
+  (məs. 2 ədəd × 5.00 + 1 ədəd × 6.00 = **16.00 ₼**, "3 × 5.33 = 15.99" deyil). Orta alış qiyməti yalnız göstərmək üçündür.
+- Satışda hər sətir anbardan öz dəqiq mayasını götürür; sonuncu ədəd qalan dəyərin hamısını aparır. Nəticədə həmişə:
+  **alışlar = satılanların mayası + anbar dəyəri** (sayım düzəlişləri ayrıca göstərilir).
+- Mədaxildə **"Ümumi məbləğ"** rejimi var: "3 ədəd cəmi 10.00 ₼" yazılır, anbar dəyəri dəqiq 10.00 artır.
 - Satış ləğv edildikdə: məhsullar anbara qayıdır, kassa və borc əks yazılışla düzəlir, səbəb saxlanılır. Kassa tarixçəsindən heç nə silinmir.
 - Bütün məbləğlər qəpiklə (tam ədəd) saxlanılır — yuvarlaqlaşdırma xətası olmur.
 
@@ -77,6 +81,16 @@ Digər qaydalar:
 - İnternet lazım deyil — yoxlama telefonda lokal işləyir və telefon yenidən başladılanda da davam edir.
 - **Ayarlar → Borc xatırlatmaları**: aç/söndür, bildiriş saatı, bildiriş icazəsi.
 - Android 13+ telefonlarda ilk dəfə tarix seçəndə bildiriş icazəsi soruşulur — **İcazə ver** seçin.
+
+## 4.2. Anbar qalığının düzəldilməsi (sayım)
+
+- **Menyu → Anbar sayımı** (və ya Anbar ekranında ✓ düyməsi).
+- Hər məhsulun **faktiki sayını** yazın, ya da ± düymələri ilə dəyişin. Boş saxlanılanlar dəyişmir.
+- **Skan edərək saymaq:** yuxarıdakı skan düyməsi — hər skan həmin məhsulun sayını +1 artırır.
+- Altda fərqlər görünür: neçə məhsul, say fərqi və **anbar dəyərinin dəyişməsi (₼)**.
+- **Təsdiqlə** — qalıqlar və dəyər bir əməliyyatla düzəldilir; hər düzəliş məhsulun "Stok hərəkəti" tarixçəsinə və Əməliyyat tarixçəsinə yazılır.
+- Azalanda (itki, zədə) dəyər mütənasib çıxılır; artanda (tapılan mal) orta alış qiyməti ilə əlavə olunur.
+- Tək məhsul üçün: məhsul səhifəsi → **Stoku dəyiş**.
 
 ## 5. Backup və bərpa (çox vacib)
 
@@ -116,7 +130,7 @@ Zavod barkodu olmayan mallar (qablar, kabellər, aksesuarlar) üçün iki yol va
 Komanda sətrindən:
 
 ```bash
-./gradlew testDebugUnitTest   # testlər (21 test: biznes məntiqi + bütün ekranlar)
+./gradlew testDebugUnitTest   # testlər (30 test: biznes məntiqi + bütün ekranlar)
 ./gradlew assembleRelease     # app/build/outputs/apk/release/app-release.apk
 ```
 

@@ -60,7 +60,7 @@ class InventoryViewModel(repo: PosRepository) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val totals = products.map { l ->
-        Triple(l.sumOf { it.stock.coerceAtLeast(0).toLong() }, l.sumOf { it.stock.coerceAtLeast(0) * it.purchasePrice },
+        Triple(l.sumOf { it.stock.coerceAtLeast(0).toLong() }, l.filter { it.stock > 0 }.sumOf { it.stockCost },
             l.sumOf { it.stock.coerceAtLeast(0) * it.salePrice })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Triple(0L, 0L, 0L))
 
@@ -94,6 +94,7 @@ fun InventoryScreen(nav: NavController, openMenu: () -> Unit) {
 
     Scaffold(
         topBar = { PosTopBar("Anbar", onMenu = openMenu, actions = {
+            IconButton(onClick = { nav.navigate(Routes.STOCK_COUNT) }) { Icon(Icons.Default.FactCheck, "Anbar sayımı") }
             IconButton(onClick = { labels = list }) { Icon(Icons.Default.QrCode2, "Barkod etiketləri") }
             IconButton(onClick = { nav.navigate(Routes.PURCHASES) }) { Icon(Icons.Default.MoveToInbox, "Mədaxil") }
         }) },
@@ -362,10 +363,11 @@ fun ProductDetailScreen(nav: NavController, id: Long) {
                     InfoRow("Anbar qalığı", "${p.stock} ədəd", bold = true,
                         valueColor = if (p.stock <= 0) extra.negative else if (p.stock <= p.minStock) extra.warning else MaterialTheme.colorScheme.onSurface)
                     InfoRow("Minimum stok limiti", "${p.minStock}")
-                    InfoRow("Alış qiyməti (maya)", p.purchasePrice.money())
+                    InfoRow("Orta alış qiyməti (maya)", p.purchasePrice.money())
                     InfoRow("Satış qiyməti", p.salePrice.money())
                     InfoRow("Bir ədəddən qazanc", (p.salePrice - p.purchasePrice).money(), valueColor = extra.positive)
-                    InfoRow("Anbar dəyəri (alış / satış)", "${(p.stock.coerceAtLeast(0) * p.purchasePrice).money()} / ${(p.stock.coerceAtLeast(0) * p.salePrice).money()}")
+                    InfoRow("Anbar dəyəri (alış, dəqiq)", (if (p.stock > 0) p.stockCost else 0L).money(), bold = true)
+                    InfoRow("Anbar dəyəri (satış qiyməti ilə)", (p.stock.coerceAtLeast(0) * p.salePrice).money())
                     if (p.barcode.isNotBlank()) InfoRow("Barkod", p.barcode)
                     if (p.sku.isNotBlank()) InfoRow("SKU", p.sku)
                     InfoRow("Əlavə edilib", Dates.dateTime(p.createdAt))

@@ -1,5 +1,6 @@
 package az.magaza.pos.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -27,6 +28,11 @@ data class Product(
     val supplierId: Long? = null,
     val note: String = "",
     val createdAt: Long = System.currentTimeMillis(),
+    /**
+     * Anbardakı bütün ədədlərin DƏQİQ alış dəyəri (qəpiklə). Anbar dəyəri bu sahədən hesablanır,
+     * "stok × orta qiymət" kimi yuvarlaqlaşdırılmış hasildən yox. purchasePrice isə göstərmək üçün orta qiymətdir.
+     */
+    @ColumnInfo(defaultValue = "0") val stockCost: Long = 0,
 )
 
 @Serializable
@@ -87,6 +93,8 @@ data class SaleItem(
     val unitPrice: Long,
     val unitCost: Long,
     val lineTotal: Long,
+    /** Satılan ədədlərin dəqiq maya dəyəri (anbardan çıxan qəpiklər). */
+    @ColumnInfo(defaultValue = "0") val lineCost: Long = 0,
 )
 
 object PayMethod {

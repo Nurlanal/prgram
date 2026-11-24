@@ -20,7 +20,8 @@ import java.util.zip.ZipOutputStream
 @Serializable
 data class BackupData(
     val format: String = FORMAT,
-    val version: Int = 1,
+    /** 1 — ilk versiya; 2 — dəqiq anbar dəyəri (stockCost, lineCost). */
+    val version: Int = 2,
     val createdAt: Long = System.currentTimeMillis(),
     val products: List<Product> = emptyList(),
     val customers: List<Customer> = emptyList(),
@@ -125,10 +126,17 @@ class BackupManager(private val context: Context, private val repo: PosRepositor
     /** Bütün mövcud məlumatları backup-dakı məlumatlarla əvəz edir. */
     suspend fun restore(data: BackupData, images: Map<String, ByteArray>) {
         val d = repo.dao
+        // Köhnə (v1) backup-larda dəqiq dəyər sahələri yoxdur — onları qalıq × alış qiyməti ilə doldururuq.
+        val products = if (data.version < 2) data.products.map {
+            if (it.stockCost == 0L && it.stock > 0) it.copy(stockCost = it.stock.toLong() * it.purchasePrice) else it
+        } else data.products
+        val saleItems = if (data.version < 2) data.saleItems.map {
+            if (it.lineCost == 0L) it.copy(lineCost = it.unitCost * it.quantity) else it
+        } else data.saleItems
         repo.db.withTransaction {
             clearTables()
-            d.putProducts(data.products); d.putCustomers(data.customers); d.putSuppliers(data.suppliers)
-            d.putSales(data.sales); d.putSaleItems(data.saleItems); d.putCashTx(data.cashTransactions)
+            d.putProducts(products); d.putCustomers(data.customers); d.putSuppliers(data.suppliers)
+            d.putSales(data.sales); d.putSaleItems(saleItems); d.putCashTx(data.cashTransactions)
             d.putExpenses(data.expenses); d.putPurchases(data.purchases); d.putDebtTx(data.customerDebtTx)
             d.putSupplierTx(data.supplierTx); d.putStockMoves(data.stockMoves); d.putSessions(data.cashSessions)
             d.putLogs(data.activityLog)

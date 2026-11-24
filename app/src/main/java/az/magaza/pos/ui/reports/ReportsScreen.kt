@@ -198,7 +198,7 @@ private fun LazyListScope.stockTab(d: ReportData, nav: NavController) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(IntrinsicSize.Min)) {
             StatCard("Stok sayı", "${ps.sumOf { it.stock.coerceAtLeast(0) }}", Icons.Default.Inventory2, Modifier.weight(1f).fillMaxHeight(),
                 subtitle = "${ps.size} növ")
-            StatCard("Alış dəyəri", ps.sumOf { it.stock.coerceAtLeast(0) * it.purchasePrice }.money(), Icons.Default.Savings,
+            StatCard("Alış dəyəri", ps.filter { it.stock > 0 }.sumOf { it.stockCost }.money(), Icons.Default.Savings,
                 Modifier.weight(1f).fillMaxHeight(), tint = MaterialTheme.colorScheme.tertiary)
             StatCard("Satış dəyəri", ps.sumOf { it.stock.coerceAtLeast(0) * it.salePrice }.money(), Icons.Default.Sell,
                 Modifier.weight(1f).fillMaxHeight(), tint = MaterialTheme.colorScheme.secondary)
@@ -220,7 +220,7 @@ private fun StockRow(p: Product, nav: NavController) {
     ListItem(
         modifier = Modifier.padding(0.dp),
         headlineContent = { Text(p.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = { Text("Alış ${(p.stock.coerceAtLeast(0) * p.purchasePrice).money()} · Satış ${(p.stock.coerceAtLeast(0) * p.salePrice).money()}") },
+        supportingContent = { Text("Alış ${(if (p.stock > 0) p.stockCost else 0L).money()} · Satış ${(p.stock.coerceAtLeast(0) * p.salePrice).money()}") },
         trailingContent = {
             TextButton(onClick = { nav.navigate(Routes.product(p.id)) }) {
                 Text("${p.stock} əd.", color = when { p.stock <= 0 -> extra.negative; p.stock <= p.minStock -> extra.warning; else -> MaterialTheme.colorScheme.onSurface })
@@ -308,10 +308,10 @@ private fun exportCsv(ctx: Context, tab: Int, d: ReportData): java.io.File {
         }
         2 -> {
             csv.row("Anbar hesabatı", Dates.dateTime(System.currentTimeMillis())); csv.blank()
-            csv.row("Məhsul", "Kateqoriya", "Marka", "Barkod", "SKU", "Stok", "Min. stok", "Alış qiyməti", "Satış qiyməti", "Alış dəyəri", "Satış dəyəri", "Vəziyyət")
+            csv.row("Məhsul", "Kateqoriya", "Marka", "Barkod", "SKU", "Stok", "Min. stok", "Orta alış qiyməti", "Satış qiyməti", "Alış dəyəri", "Satış dəyəri", "Vəziyyət")
             d.products.forEach { x ->
                 csv.row(x.name, x.category, x.brand, x.barcode, x.sku, x.stock, x.minStock, p(x.purchasePrice), p(x.salePrice),
-                    p(x.stock.coerceAtLeast(0) * x.purchasePrice), p(x.stock.coerceAtLeast(0) * x.salePrice),
+                    p(if (x.stock > 0) x.stockCost else 0L), p(x.stock.coerceAtLeast(0) * x.salePrice),
                     when { x.stock <= 0 -> "Stokda yoxdur"; x.stock <= x.minStock -> "Az qalıb"; else -> "Var" })
             }
         }

@@ -179,4 +179,22 @@ class UiSmokeTest {
         click("Yadda saxla")
         rule.waitUntil(5000) { runBlocking { (app.repo.dao.allDebtTx().single().dueAt ?: 0) > System.currentTimeMillis() } }
     }
+
+    @Test
+    fun stockCountScreenCorrectsStock() {
+        seed()
+        rule.waitForIdle()
+        openDrawerItem("Anbar sayımı (qalıq düzəlişi)")
+        rule.waitUntil(5000) { rule.onAllNodesWithText("iPhone kabeli", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        // iPhone kabeli: sistemdə 20 → 2 dəfə azalt = 18
+        rule.onAllNodesWithContentDescription("Azalt")[0].performClick()
+        rule.onAllNodesWithContentDescription("Azalt")[0].performClick()
+        rule.waitForIdle()
+        rule.onAllNodesWithText("1 məhsulda fərq", useUnmergedTree = true).onFirst().assertExists()
+        click("Təsdiqlə")
+        rule.waitUntil(5000) { rule.onAllNodesWithText("Sayımı təsdiqlə", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        rule.onAllNodesWithText("Təsdiqlə", useUnmergedTree = true).onLast().performClick()
+        rule.waitUntil(5000) { runBlocking { app.repo.dao.allProducts().first { it.name == "iPhone kabeli" }.stock == 18 } }
+        runBlocking { assertEquals(18 * 500L, app.repo.dao.allProducts().first { it.name == "iPhone kabeli" }.stockCost) }
+    }
 }
