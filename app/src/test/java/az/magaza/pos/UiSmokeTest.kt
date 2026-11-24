@@ -138,4 +138,24 @@ class UiSmokeTest {
         rule.waitUntil(5000) { runBlocking { app.repo.dao.allSales()[0].status == "CANCELLED" } }
         runBlocking { assertEquals(20, app.repo.dao.allProducts().first { it.name == "iPhone kabeli" }.stock) }
     }
+
+    @Test
+    fun unknownBarcodeIsAssignedFromSalesScreen() {
+        seed()
+        rule.waitForIdle()
+        bottom("Satış")
+        // Kənar skaner kimi: barkodu yazıb Enter
+        rule.onNode(hasSetTextAction()).performTextInput("8690000000017")
+        rule.onNode(hasSetTextAction()).performImeAction()
+        rule.waitUntil(5000) { rule.onAllNodesWithText("Barkod tapılmadı").fetchSemanticsNodes().isNotEmpty() }
+        // Barkodsuz "Silikon qab" siyahıdadır, barkodlu "iPhone kabeli" isə yox
+        rule.onAllNodesWithText("iPhone kabeli", substring = true).assertCountEquals(0)
+        rule.onAllNodesWithText("Təyin et", useUnmergedTree = true).onFirst().performClick()
+        rule.waitUntil(5000) { runBlocking { app.repo.dao.findByBarcode("8690000000017") != null } }
+        rule.waitForIdle()
+        runBlocking { assertEquals("Silikon qab", app.repo.dao.findByBarcode("8690000000017")!!.name) }
+        // Məhsul dərhal səbətə düşdü
+        rule.waitUntil(5000) { rule.onAllNodesWithText("Ödəniş", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("1 məhsul").assertExists()
+    }
 }

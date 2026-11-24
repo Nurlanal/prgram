@@ -57,7 +57,7 @@ object Routes {
     const val SETTINGS = "settings"
     const val BACKUP = "backup"
     const val LOG = "log"
-    fun productEdit(id: Long = 0) = "product/edit/$id"
+    fun productEdit(id: Long = 0, barcode: String = "") = "product/edit/$id?barcode=${android.net.Uri.encode(barcode)}"
     fun product(id: Long) = "product/$id"
     fun customer(id: Long) = "customer/$id"
     fun supplier(id: Long) = "supplier/$id"
@@ -180,8 +180,14 @@ fun PosNavRoot(nav: NavHostController = rememberNavController()) {
                         composable(Routes.SETTINGS) { SettingsScreen(nav) }
                         composable(Routes.BACKUP) { BackupScreen(nav) }
                         composable(Routes.LOG) { ActivityLogScreen(nav) }
-                        composable("product/edit/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
-                            ProductEditScreen(nav, it.arguments!!.getLong("id"))
+                        composable(
+                            "product/edit/{id}?barcode={barcode}",
+                            arguments = listOf(
+                                navArgument("id") { type = NavType.LongType },
+                                navArgument("barcode") { type = NavType.StringType; defaultValue = "" },
+                            ),
+                        ) {
+                            ProductEditScreen(nav, it.arguments!!.getLong("id"), it.arguments?.getString("barcode").orEmpty())
                         }
                         composable("product/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                             ProductDetailScreen(nav, it.arguments!!.getLong("id"))

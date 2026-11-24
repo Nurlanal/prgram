@@ -30,13 +30,14 @@ import az.magaza.pos.ui.Routes
 import az.magaza.pos.ui.components.*
 import az.magaza.pos.ui.theme.LocalExtraColors
 import az.magaza.pos.ui.theme.NumberStyle
+import az.magaza.pos.util.Barcodes
 import az.magaza.pos.util.Dates
 import az.magaza.pos.util.ImageStore
 import az.magaza.pos.util.Money
 import az.magaza.pos.util.money
 import kotlinx.coroutines.flow.*
 
-enum class StockFilter(val label: String) { ALL("Hamısı"), LOW("Az qalan"), OUT("Stokda yoxdur") }
+enum class StockFilter(val label: String) { ALL("Hamısı"), LOW("Az qalan"), OUT("Stokda yoxdur"), NO_BARCODE("Barkodsuz") }
 
 class InventoryViewModel(repo: PosRepository) : ViewModel() {
     val query = MutableStateFlow("")
@@ -53,6 +54,7 @@ class InventoryViewModel(repo: PosRepository) : ViewModel() {
                     StockFilter.ALL -> true
                     StockFilter.LOW -> p.stock in 1..p.minStock
                     StockFilter.OUT -> p.stock <= 0
+                    StockFilter.NO_BARCODE -> p.barcode.isBlank()
                 }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -64,6 +66,8 @@ class InventoryViewModel(repo: PosRepository) : ViewModel() {
 
     val alerts = products.map { l -> l.count { it.stock in 1..it.minStock } to l.count { it.stock <= 0 } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0 to 0)
+    val noBarcode = products.map { l -> l.count { it.barcode.isBlank() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 }
 
 @Composable
@@ -77,6 +81,9 @@ fun InventoryScreen(nav: NavController, openMenu: () -> Unit) {
     val filter by vm.stockFilter.collectAsState()
     val totals by vm.totals.collectAsState()
     val alerts by vm.alerts.collectAsState()
+    val noBarcode by vm.noBarcode.collectAsState()
+    var labels by remember { mutableStateOf<List<Product>?>(null) }
+    var confirmGenerate by remember { mutableStateOf(false) }
     val extra = LocalExtraColors.current
     val scan = rememberBarcodeScanner { code ->
         runner.run {
@@ -87,6 +94,7 @@ fun InventoryScreen(nav: NavController, openMenu: () -> Unit) {
 
     Scaffold(
         topBar = { PosTopBar("Anbar", onMenu = openMenu, actions = {
+            IconButton(onClick = { labels = list }) { Icon(Icons.Default.QrCode2, "Barkod etiketləri") }
             IconButton(onClick = { nav.navigate(Routes.PURCHASES) }) { Icon(Icons.Default.MoveToInbox, "Mədaxil") }
         }) },
         floatingActionButton = {
@@ -115,9 +123,9 @@ fun InventoryScreen(nav: NavController, openMenu: () -> Unit) {
             item {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StockFilter.entries.forEach { f ->
-                        val count = when (f) { StockFilter.LOW -> " (${alerts.first})"; StockFilter.OUT -> " (${alerts.second})"; else -> "" }
+                        val count = when (f) { StockFilter.LOW -> " (${alerts.first})"; StockFilter.OUT -> " (${alerts.second})"; StockFilter.NO_BARCODE -> " ($noBarcode)"; else -> "" }
                         FilterChip(selected = filter == f, onClick = { vm.stockFilter.value = f }, label = { Text(f.label + count) },
-                            leadingIcon = if (f != StockFilter.ALL && (if (f == StockFilter.LOW) alerts.first else alerts.second) > 0)
+                            leadingIcon = if ((f == StockFilter.LOW || f == StockFilter.OUT) && (if (f == StockFilter.LOW) alerts.first else alerts.second) > 0)
                                 ({ Icon(Icons.Default.Warning, null, Modifier.size(16.dp), tint = if (f == StockFilter.OUT) extra.negative else extra.warning) }) else null)
                     }
                 }
@@ -127,6 +135,19 @@ fun InventoryScreen(nav: NavController, openMenu: () -> Unit) {
                     FilterChip(selected = category == null, onClick = { vm.category.value = null }, label = { Text("Bütün kateqoriyalar") })
                     Categories.products.forEach { c ->
                         FilterChip(selected = category == c, onClick = { vm.category.value = if (category == c) null else c }, label = { Text(c) })
+                    }
+                }
+            }
+            if (filter == StockFilter.NO_BARCODE && list.isNotEmpty()) item {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text("${list.size} məhsulun barkodu yoxdur", style = MaterialTheme.typography.titleSmall)
+                        Text("Hamısına mağaza daxili barkod (20… ilə başlayan EAN-13) yaradın, etiketləri çap edib məhsullara yapışdırın.",
+                            style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = { confirmGenerate = true }) {
+                            Icon(Icons.Default.QrCode2, null); Spacer(Modifier.width(6.dp)); Text("Hamısına barkod yarat")
+                        }
                     }
                 }
             }
@@ -156,12 +177,28 @@ fun InventoryScreen(nav: NavController, openMenu: () -> Unit) {
             }
         }
     }
+    labels?.let { LabelDialog(it, runner) { labels = null } }
+    if (confirmGenerate) ConfirmDialog(
+        "Barkod yarat", "Barkodu olmayan $noBarcode məhsula daxili barkod yaradılsın?", "Yarat",
+        onConfirm = {
+            runner.run {
+                val before = app.repo.dao.allProducts().filter { it.barcode.isBlank() }.map { it.id }.toSet()
+                val n = app.repo.generateMissingBarcodes()
+                runner.message("$n məhsula barkod yaradıldı")
+                // Yeni barkodlar üçün etiket çapını dərhal təklif edirik
+                labels = app.repo.dao.allProducts().filter { it.id in before }
+                vm.stockFilter.value = StockFilter.ALL
+            }
+        },
+        onDismiss = { confirmGenerate = false },
+    )
 }
 
 // ============================== Məhsul formu ==============================
 
+
 @Composable
-fun ProductEditScreen(nav: NavController, id: Long) {
+fun ProductEditScreen(nav: NavController, id: Long, initialBarcode: String = "") {
     val app = app()
     val ctx = LocalContext.current
     val runner = rememberRunner()
@@ -171,7 +208,7 @@ fun ProductEditScreen(nav: NavController, id: Long) {
 
     var name by remember { mutableStateOf("") }
     var image by remember { mutableStateOf<String?>(null) }
-    var barcode by remember { mutableStateOf("") }
+    var barcode by remember { mutableStateOf(initialBarcode) }
     var sku by remember { mutableStateOf("") }
     var category by remember { mutableStateOf(Categories.products.first()) }
     var brand by remember { mutableStateOf("") }
@@ -227,8 +264,23 @@ fun ProductEditScreen(nav: NavController, id: Long) {
             }
             TextInput(name, { name = it }, "Məhsul adı *")
             TextInput(barcode, { barcode = it }, "Barkod", trailing = {
-                IconButton(onClick = scan) { Icon(Icons.Default.QrCodeScanner, "Skan et") }
+                Row {
+                    IconButton(onClick = {
+                        runner.run {
+                            // Yeni məhsul üçün də unikal daxili EAN-13 barkod
+                            var code: String
+                            var attempt = 0
+                            do {
+                                code = Barcodes.internalFor(if (id != 0L) id else (System.currentTimeMillis() / 1000) % 10_000_000_000L, attempt++)
+                            } while (app.repo.dao.findDuplicateCode(code, id) != null)
+                            barcode = code
+                        }
+                    }) { Icon(Icons.Default.QrCode2, "Barkod yarat") }
+                    IconButton(onClick = scan) { Icon(Icons.Default.QrCodeScanner, "Skan et") }
+                }
             })
+            if (barcode.isBlank()) Text("Barkodu yoxdursa, ▦ düyməsi ilə yaradın və sonra etiketini çap edin.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextInput(sku, { sku = it }, "SKU kodu", Modifier.weight(1f))
                 TextInput(brand, { brand = it }, "Marka", Modifier.weight(1f))
@@ -282,6 +334,7 @@ fun ProductDetailScreen(nav: NavController, id: Long) {
     var adjust by remember { mutableStateOf(false) }
     var priceDialog by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var labelsFor by remember { mutableStateOf<Product?>(null) }
     val extra = LocalExtraColors.current
 
     Scaffold(topBar = {
@@ -318,6 +371,11 @@ fun ProductDetailScreen(nav: NavController, id: Long) {
                     InfoRow("Əlavə edilib", Dates.dateTime(p.createdAt))
                     if (p.note.isNotBlank()) Text(p.note, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
                 }
+            }
+            item {
+                BarcodeCard(p,
+                    onGenerate = { runner.run(success = "Barkod yaradıldı") { labelsFor = app.repo.generateBarcode(p.id) } },
+                    onLabels = { labelsFor = p })
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -358,6 +416,7 @@ fun ProductDetailScreen(nav: NavController, id: Long) {
         }
 
     }
+    labelsFor?.let { LabelDialog(listOf(it), runner) { labelsFor = null } }
     product?.let { p ->
         if (adjust) {
             var v by remember { mutableStateOf(p.stock.toString()) }

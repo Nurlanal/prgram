@@ -10,7 +10,7 @@ Telefon, elektronika və aksesuar mağazaları üçün **tam offline** işləyə
 
 ## 1. Quraşdırma (APK)
 
-1. `apk/MagazaPOS-v1.0.0.apk` faylını telefona köçürün (USB, Telegram, WhatsApp, Google Drive və s.).
+1. `apk/MagazaPOS-v1.1.0.apk` faylını telefona köçürün (USB, Telegram, WhatsApp, Google Drive və s.).
 2. Telefonda faylı açın.
 3. "Naməlum mənbələrdən quraşdırma" soruşularsa: **Ayarlar → İcazə ver** (bu fayl üçün) seçin.
 4. **Quraşdır** düyməsini basın.
@@ -79,6 +79,22 @@ Məlumatlar yalnız telefonda saxlanıldığı üçün **müntəzəm backup çı
 - **Barkod skaneri:** telefon kamerası (proqramdakı skan düyməsi) və ya USB/Bluetooth skaner (klaviatura kimi işləyir — axtarış sahəsinə yazıb Enter göndərir, məhsul avtomatik səbətə düşür).
 - **Çek printeri:** ESC/POS dəstəkləyən 58 mm və 80 mm Bluetooth printerlər. Printeri əvvəlcə telefonun Bluetooth ayarlarında cütləşdirin, sonra **Ayarlar → Printer seç → Test çapı**. Printerlərin çoxu Azərbaycan hərflərini dəstəkləmədiyi üçün çekdə latın ekvivalentləri çap olunur (ə→e, ş→s...). PDF çekdə hərflər tam görünür.
 
+## 6.1. Barkodsuz mallar
+
+Zavod barkodu olmayan mallar (qablar, kabellər, aksesuarlar) üçün iki yol var:
+
+**A) Satış zamanı birbaşa təyin etmək (ən sürətli):**
+1. Satış ekranında malın üzərindəki istənilən barkodu (və ya yapışdırdığınız etiketi) skan edin.
+2. Proqram barkodu tanımırsa, **"Barkod tapılmadı"** pəncərəsi açılır — barkodsuz məhsulların siyahısı göstərilir.
+3. Məhsulu seçib **Təyin et** basın: barkod həmin məhsula yazılır və məhsul **dərhal səbətə düşür**.
+4. Növbəti dəfə həmin barkod skan ediləndə məhsul avtomatik tanınır. (Siyahıda yoxdursa — **Yeni məhsul yarat**, barkod formada hazır olur.)
+
+**B) Mağaza daxili barkod yaratmaq və etiket çap etmək:**
+1. **Anbar → "Barkodsuz"** filtri → **Hamısına barkod yarat** (və ya məhsulun səhifəsində **Barkod yarat**, ya da məhsul formasında ▦ düyməsi).
+2. Yaradılan barkodlar `20…` ilə başlayan EAN-13 kodlarıdır (mağaza daxili istifadə üçün ayrılmış diapazon — zavod barkodları ilə toqquşmur).
+3. Etiket çapı: **Bluetooth çek printerinə** (ad + qiymət + barkod) və ya **PDF (A4, 3×8 yapışqanlı etiket vərəqi)**. Say: hər məhsuldan N ədəd və ya stok sayı qədər.
+4. Etiketləri mallara yapışdırın — satışda kamera və ya skanerlə vurulur.
+
 ## 7. Layihəni Android Studio-da açmaq və APK yığmaq
 
 1. Android Studio (Ladybug və ya daha yeni) → **Open** → bu qovluq.
@@ -87,7 +103,7 @@ Məlumatlar yalnız telefonda saxlanıldığı üçün **müntəzəm backup çı
 Komanda sətrindən:
 
 ```bash
-./gradlew testDebugUnitTest   # testlər (14 test: biznes məntiqi + bütün ekranlar)
+./gradlew testDebugUnitTest   # testlər (16 test: biznes məntiqi + bütün ekranlar)
 ./gradlew assembleRelease     # app/build/outputs/apk/release/app-release.apk
 ```
 

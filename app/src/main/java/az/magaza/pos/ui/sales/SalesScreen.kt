@@ -164,12 +164,13 @@ fun SalesScreen(nav: NavController, openMenu: () -> Unit) {
     val allProducts by vm.products.collectAsState()
     var showCheckout by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf<Long?>(null) }
+    var unknownCode by remember { mutableStateOf<String?>(null) }
     val extra = LocalExtraColors.current
 
     fun addByCode(code: String) {
         runner.run {
             val p = vm.findByCode(code.trim())
-            if (p == null) runner.message("Barkod \"$code\" ilə məhsul tapılmadı")
+            if (p == null) unknownCode = code.trim()
             else {
                 val err = vm.add(p)
                 if (err != null) runner.message(err) else { vm.query.value = ""; runner.message("${p.name} səbətə əlavə edildi") }
@@ -210,6 +211,7 @@ fun SalesScreen(nav: NavController, openMenu: () -> Unit) {
                     when {
                         exact != null -> addByCode(query)
                         list.size == 1 -> vm.add(list[0])?.let { runner.message(it) } ?: run { vm.query.value = "" }
+                        list.isEmpty() && query.trim().length >= 4 && query.trim().none { it.isWhitespace() } -> unknownCode = query.trim()
                     }
                 } },
             )
@@ -243,6 +245,24 @@ fun SalesScreen(nav: NavController, openMenu: () -> Unit) {
         ModalBottomSheet(onDismissRequest = { showCheckout = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             CheckoutSheet(vm, runner, onDone = { id -> showCheckout = false; done = id }, onAddCustomer = {})
         }
+    }
+
+    unknownCode?.let { code ->
+        UnknownBarcodeDialog(
+            code = code,
+            products = allProducts,
+            onAssign = { product ->
+                runner.run {
+                    val updated = vm.repo.assignBarcode(product.id, code)
+                    unknownCode = null
+                    vm.query.value = ""
+                    val err = vm.add(updated)
+                    runner.message(err ?: "Barkod \"${updated.name}\" məhsuluna təyin edildi və səbətə əlavə olundu")
+                }
+            },
+            onCreate = { unknownCode = null; nav.navigate(Routes.productEdit(0, barcode = code)) },
+            onDismiss = { unknownCode = null },
+        )
     }
 
     done?.let { id -> SaleDoneDialog(id, runner, onClose = { done = null }, onOpen = { done = null; nav.navigate(Routes.sale(id)) }) }
@@ -439,5 +459,62 @@ fun SaleDoneDialog(saleId: Long, runner: Runner, onClose: () -> Unit, onOpen: ()
         },
         confirmButton = { Button(onClick = onClose) { Text("Yeni satış") } },
         dismissButton = { TextButton(onClick = onOpen) { Text("Detallar") } },
+    )
+}
+
+/**
+ * Tanınmayan barkod skan edildikdə: barkodu mövcud (adətən barkodsuz) məhsula təyin edib dərhal səbətə atmaq
+ * və ya bu barkodla yeni məhsul yaratmaq.
+ */
+@Composable
+fun UnknownBarcodeDialog(
+    code: String,
+    products: List<Product>,
+    onAssign: (Product) -> Unit,
+    onCreate: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var q by remember { mutableStateOf("") }
+    var onlyWithout by remember { mutableStateOf(true) }
+    val filtered = remember(q, onlyWithout, products) {
+        products.filter { (!onlyWithout || it.barcode.isBlank()) && (q.isBlank() || it.name.contains(q, true) || it.sku.contains(q, true) || it.brand.contains(q, true)) }
+            .sortedWith(compareBy<Product> { it.barcode.isNotBlank() }.thenBy { it.name.lowercase() })
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.QrCode2, null) },
+        title = { Text("Barkod tapılmadı") },
+        text = {
+            Column {
+                Text(code, style = MaterialTheme.typography.titleLarge.merge(NumberStyle))
+                Text("Bu barkodu hansı məhsula təyin edək? Seçilən məhsul dərhal səbətə əlavə olunacaq, növbəti dəfə skan edəndə avtomatik tanınacaq.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                SearchField(q, { q = it }, "Məhsul adı")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(onlyWithout, { onlyWithout = it })
+                    Text("Yalnız barkodsuz məhsullar", style = MaterialTheme.typography.bodyMedium)
+                }
+                LazyColumn(Modifier.heightIn(max = 300.dp)) {
+                    items(filtered, key = { it.id }) { p ->
+                        ListItem(
+                            headlineContent = { Text(p.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                            supportingContent = {
+                                Text("${p.salePrice.money()} · stok ${p.stock}" + if (p.barcode.isNotBlank()) " · köhnə barkod: ${p.barcode}" else "")
+                            },
+                            leadingContent = { ProductThumb(p.imagePath, p.name, 40.dp) },
+                            trailingContent = { TextButton(onClick = { onAssign(p) }) { Text("Təyin et") } },
+                        )
+                    }
+                    if (filtered.isEmpty()) item {
+                        Text(if (onlyWithout) "Barkodsuz məhsul tapılmadı" else "Məhsul tapılmadı", Modifier.padding(12.dp))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onCreate) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(4.dp)); Text("Yeni məhsul yarat") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Bağla") } },
     )
 }

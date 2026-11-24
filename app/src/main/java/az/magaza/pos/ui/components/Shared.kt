@@ -150,14 +150,20 @@ class ReceiptActions(
 
     fun print(sale: Sale, items: List<SaleItem>) {
         val s = settings()
+        printBytes("Çek printerə göndərildi") { BluetoothPrinter.escPos(Receipt.build(sale, items, s), s.paperWidth) }
+    }
+
+    /** İstənilən ESC/POS məlumatını (məs. barkod etiketi) seçilmiş Bluetooth printerə göndərir. */
+    fun printBytes(success: String, data: () -> ByteArray) {
+        val s = settings()
         if (s.printerAddress.isBlank()) {
             runner.message("Əvvəlcə Ayarlar bölməsində Bluetooth printeri seçin")
             return
         }
         requestBtPermission {
-            runner.run(success = "Çek printerə göndərildi") {
+            runner.run(success = success) {
                 try {
-                    BluetoothPrinter.print(context, s.printerAddress, BluetoothPrinter.escPos(Receipt.build(sale, items, s), s.paperWidth))
+                    BluetoothPrinter.print(context, s.printerAddress, data())
                 } catch (e: Exception) {
                     throw az.magaza.pos.data.PosException("Printerə qoşulmaq mümkün olmadı: ${e.message ?: "naməlum xəta"}. Printerin açıq və cütləşdirilmiş olduğunu yoxlayın.")
                 }

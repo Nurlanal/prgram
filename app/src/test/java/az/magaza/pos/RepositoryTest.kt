@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import az.magaza.pos.data.*
 import az.magaza.pos.data.db.*
+import az.magaza.pos.util.Barcodes
 import az.magaza.pos.util.DateRange
 import az.magaza.pos.util.Money
 import az.magaza.pos.util.RangePreset
@@ -234,6 +235,33 @@ class RepositoryTest {
         assertEquals(after.products, bm.readBackup(json.toByteArray().inputStream()).first.products)
         // Səhv fayl rədd edilir
         assertTrue(runCatching { bm.readBackup("salam".byteInputStream()) }.exceptionOrNull() is PosException)
+    }
+
+    @Test
+    fun assignAndGenerateBarcodes() = runBlocking {
+        val a = repo.saveProduct(Product(name = "Qab A", salePrice = 500, stock = 5))
+        val b = repo.saveProduct(Product(name = "Qab B", salePrice = 500, stock = 5))
+        val c = repo.saveProduct(Product(name = "Kabel", barcode = "4801234567890", salePrice = 900, stock = 5))
+
+        // Satışda skan edilmiş naməlum barkod mövcud məhsula təyin edilir
+        repo.assignBarcode(a, "123456")
+        assertEquals(a, dao.findByBarcode("123456")!!.id)
+        assertTrue(runCatching { repo.assignBarcode(b, "123456") }.exceptionOrNull() is PosException)
+        assertTrue(runCatching { repo.assignBarcode(b, "4801234567890") }.exceptionOrNull() is PosException)
+        // Təyin edildikdən sonra həmin barkodla satış
+        val sale = repo.completeSale(listOf(CartLine(dao.findByBarcode("123456")!!.id, "", 2, 500)), 0, 1000, 0, null)
+        assertEquals(3, dao.getProduct(a)!!.stock)
+        assertEquals(1000L, dao.getSale(sale)!!.total)
+
+        // Barkodsuz məhsullara daxili EAN-13
+        assertEquals(1, repo.generateMissingBarcodes())
+        val code = dao.getProduct(b)!!.barcode
+        assertTrue(Barcodes.isValidEan13(code))
+        assertTrue(code.startsWith("20"))
+        assertEquals("4801234567890", dao.getProduct(c)!!.barcode) // mövcud barkod dəyişmir
+        assertEquals(0, repo.generateMissingBarcodes())
+        assertTrue(Barcodes.isValidEan13("4006381333931"))
+        assertFalse(Barcodes.isValidEan13("4006381333932"))
     }
 
     @Test

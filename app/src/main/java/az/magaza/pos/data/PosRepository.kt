@@ -2,6 +2,7 @@ package az.magaza.pos.data
 
 import androidx.room.withTransaction
 import az.magaza.pos.data.db.*
+import az.magaza.pos.util.Barcodes
 import az.magaza.pos.util.Money
 
 /** İstifadəçiyə göstəriləcək biznes xətası. */
@@ -86,6 +87,34 @@ class PosRepository(
                 qtyChange = newStock - p.stock, stockAfter = newStock, note = note.ifBlank { "Stok düzəlişi" })
         )
         log("Stok dəyişdirildi", "${p.name}: ${p.stock} → $newStock. $note")
+    }
+
+    /** Mövcud məhsula barkod təyin edir (məs. satış zamanı tanınmayan barkod skan edildikdə). */
+    suspend fun assignBarcode(productId: Long, code: String): Product = db.withTransaction {
+        val c = code.trim()
+        if (c.isEmpty()) throw PosException("Barkod boş ola bilməz")
+        val p = dao.getProduct(productId) ?: throw PosException("Məhsul tapılmadı")
+        dao.findDuplicateCode(c, productId)?.let { throw PosException("Bu barkod artıq \"${it.name}\" məhsulundadır") }
+        val updated = p.copy(barcode = c)
+        dao.updateProduct(updated)
+        log("Barkod təyin edildi", "${p.name}: ${p.barcode.ifBlank { "—" }} → $c")
+        updated
+    }
+
+    /** Barkodu olmayan məhsul üçün unikal daxili EAN-13 barkod yaradır. */
+    suspend fun generateBarcode(productId: Long): Product = db.withTransaction {
+        val p = dao.getProduct(productId) ?: throw PosException("Məhsul tapılmadı")
+        var attempt = 0
+        var code = Barcodes.internalFor(p.id)
+        while (dao.findDuplicateCode(code, p.id) != null) code = Barcodes.internalFor(p.id, ++attempt)
+        assignBarcode(p.id, code)
+    }
+
+    /** Bütün barkodsuz məhsullara barkod yaradır. Yaradılanların sayını qaytarır. */
+    suspend fun generateMissingBarcodes(): Int = db.withTransaction {
+        val missing = dao.allProducts().filter { it.barcode.isBlank() }
+        missing.forEach { generateBarcode(it.id) }
+        missing.size
     }
 
     // ======================= SATIŞ =======================
