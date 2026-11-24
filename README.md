@@ -10,7 +10,7 @@ Telefon, elektronika və aksesuar mağazaları üçün **tam offline** işləyə
 
 ## 1. Quraşdırma (APK)
 
-1. `apk/MagazaPOS-v1.3.0.apk` faylını telefona köçürün (USB, Telegram, WhatsApp, Google Drive və s.).
+1. `apk/MagazaPOS-v1.3.1.apk` faylını telefona köçürün (USB, Telegram, WhatsApp, Google Drive və s.).
 2. Telefonda faylı açın.
 3. "Naməlum mənbələrdən quraşdırma" soruşularsa: **Ayarlar → İcazə ver** (bu fayl üçün) seçin.
 4. **Quraşdır** düyməsini basın.

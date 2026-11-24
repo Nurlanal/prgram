@@ -162,7 +162,7 @@ fun SettingsScreen(nav: NavController) {
                     Text("Əməliyyat tarixçəsi", Modifier.weight(1f)); Icon(Icons.Default.ChevronRight, null)
                 }
             }
-            Text("Mağaza POS v1.3 · Tam offline işləyir, internet tələb etmir.", style = MaterialTheme.typography.bodySmall,
+            Text("Mağaza POS v1.3.1 · Tam offline işləyir, internet tələb etmir.", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
         }
     }

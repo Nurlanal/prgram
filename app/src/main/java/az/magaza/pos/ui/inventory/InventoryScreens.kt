@@ -84,6 +84,8 @@ fun InventoryScreen(nav: NavController, openMenu: () -> Unit) {
     val noBarcode by vm.noBarcode.collectAsState()
     var labels by remember { mutableStateOf<List<Product>?>(null) }
     var confirmGenerate by remember { mutableStateOf(false) }
+    var breakdown by remember { mutableStateOf(false) }
+    val allProducts by app.repo.dao.observeProducts().collectAsState(emptyList())
     val extra = LocalExtraColors.current
     val scan = rememberBarcodeScanner { code ->
         runner.run {
@@ -110,11 +112,11 @@ fun InventoryScreen(nav: NavController, openMenu: () -> Unit) {
         ) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(IntrinsicSize.Min)) {
-                    StatCard("Məhsul sayı", "${totals.first}", Icons.Default.Inventory2, Modifier.weight(1f).fillMaxHeight())
+                    StatCard("Say", "${totals.first} əd.", Icons.Default.Inventory2, Modifier.weight(1f).fillMaxHeight()) { breakdown = true }
                     StatCard("Alış dəyəri", totals.second.money(), Icons.Default.Savings, Modifier.weight(1f).fillMaxHeight(),
-                        tint = MaterialTheme.colorScheme.tertiary)
+                        tint = MaterialTheme.colorScheme.tertiary) { breakdown = true }
                     StatCard("Satış dəyəri", totals.third.money(), Icons.Default.Sell, Modifier.weight(1f).fillMaxHeight(),
-                        tint = MaterialTheme.colorScheme.secondary)
+                        tint = MaterialTheme.colorScheme.secondary) { breakdown = true }
                 }
             }
             item {
@@ -179,6 +181,7 @@ fun InventoryScreen(nav: NavController, openMenu: () -> Unit) {
         }
     }
     labels?.let { LabelDialog(it, runner) { labels = null } }
+    if (breakdown) StockValueBreakdownDialog(allProducts) { breakdown = false }
     if (confirmGenerate) ConfirmDialog(
         "Barkod yarat", "Barkodu olmayan $noBarcode məhsula daxili barkod yaradılsın?", "Yarat",
         onConfirm = {
@@ -484,4 +487,47 @@ fun stockTypeName(t: String) = when (t) {
     StockType.PURCHASE_CANCEL -> "Mədaxil ləğvi"
     StockType.ADJUST -> "Düzəliş"
     else -> t
+}
+
+/** Anbar dəyərinin necə hesablandığını göstərir: hər məhsul üzrə say × qiymət = dəyər və cəmi. */
+@Composable
+fun StockValueBreakdownDialog(products: List<Product>, onDismiss: () -> Unit) {
+    val inStock = products.filter { it.stock > 0 }.sortedByDescending { it.stockCost }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Anbar dəyərinin hesablanması") },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 460.dp)) {
+                item {
+                    Text("Hər məhsul: qalıq × orta alış qiyməti. Satış dəyəri isə qalıq × satış qiyməti.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                }
+                items(inStock, key = { it.id }) { p ->
+                    Column(Modifier.padding(vertical = 6.dp)) {
+                        Text(p.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row {
+                            Text("${p.stock} × ${p.purchasePrice.money()}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                            Text(p.stockCost.money(), style = MaterialTheme.typography.bodyMedium.merge(NumberStyle))
+                        }
+                        Row {
+                            Text("satış: ${p.stock} × ${p.salePrice.money()}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text((p.stock * p.salePrice).money(), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+                item {
+                    Spacer(Modifier.height(8.dp))
+                    InfoRow("Cəmi say", "${inStock.sumOf { it.stock }} ədəd")
+                    InfoRow("Alış dəyəri", inStock.sumOf { it.stockCost }.money(), bold = true)
+                    InfoRow("Satış dəyəri", inStock.sumOf { it.stock * it.salePrice }.money())
+                    InfoRow("Potensial qazanc", (inStock.sumOf { it.stock * it.salePrice } - inStock.sumOf { it.stockCost }).money())
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Bağla") } },
+    )
 }
